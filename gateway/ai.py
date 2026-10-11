@@ -10,7 +10,7 @@ from typing import Literal
 import httpx
 from pydantic import BaseModel, ConfigDict, ValidationError
 
-TIMEOUT_SECONDS = 3.0
+TIMEOUT_SECONDS = 3.0                              # default; AI_TIMEOUT_SECONDS overrides it for slower models
 TRANSPORT: httpx.BaseTransport | None = None      # tests inject httpx.MockTransport here
 STATE = {"enabled": None, "force": None}           # enabled: None -> read AI_ENABLED; force: None | "garbage" | "off"
 
@@ -48,7 +48,7 @@ def available() -> bool:
 def _call(system: str, user: str) -> str:
     """Return the model's raw text. Raises httpx.HTTPError / KeyError / ValueError on any problem."""
     prov, model, key = provider(), os.environ.get("AI_MODEL", ""), os.environ.get("AI_API_KEY", "")
-    with httpx.Client(timeout=TIMEOUT_SECONDS, transport=TRANSPORT) as c:
+    with httpx.Client(timeout=float(os.environ.get("AI_TIMEOUT_SECONDS", TIMEOUT_SECONDS)), transport=TRANSPORT) as c:
         if prov == "ollama":
             url = os.environ.get("OLLAMA_URL", "http://localhost:11434") + "/api/generate"
             r = c.post(url, json={"model": model or "qwen2.5:3b", "system": system, "prompt": user,
@@ -60,7 +60,8 @@ def _call(system: str, user: str) -> str:
             r = c.post(url, headers={"x-goog-api-key": key},
                        json={"systemInstruction": {"parts": [{"text": system}]},
                              "contents": [{"role": "user", "parts": [{"text": user}]}],
-                             "generationConfig": {"responseMimeType": "application/json", "temperature": 0}})
+                             "generationConfig": {"responseMimeType": "application/json", "temperature": 0,
+                                                  "thinkingConfig": {"thinkingBudget": 0}}})
             r.raise_for_status()
             return r.json()["candidates"][0]["content"]["parts"][0]["text"]
         if prov == "openrouter":
