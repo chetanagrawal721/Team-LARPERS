@@ -19,9 +19,9 @@
 | 2.1 | Bank seed DB and sandbox copies | chetanagrawal721 | ☑ |
 | 2.2 | Resolvers and Effect object | chetanagrawal721 | ☑ |
 | 2.3 | Data labels and destinations | chetanagrawal721 | ☑ |
-| 3.1 | Envelope and envelope check | chetanagrawal721 | ☐ |
-| 3.2 | Rules R01–R12, tiers, decide() | chetanagrawal721 | ☐ |
-| 3.3 | Resource-keyed budgets | chetanagrawal721 | ☐ |
+| 3.1 | Envelope and envelope check | chetanagrawal721 | ☑ |
+| 3.2 | Rules R01–R12, tiers, decide() | chetanagrawal721 | ☑ |
+| 3.3 | Resource-keyed budgets | chetanagrawal721 | ☑ |
 | 4.1 | Approvals and separation of duties | aryanketkar-15 | ☐ |
 | 4.2 | Effect seal with typed drift | aryanketkar-15 | ☐ |
 | 4.3 | One-transaction execution and outbox | aryanketkar-15 | ☐ |
@@ -157,4 +157,34 @@
 **Deviations from plan:** File-inherited labels (T2.3-6) have been deferred to M7.2, where the `write_file` resolver exists.
 **Last-moment changes:** no
 **Suggested commit message:** M2.3: effect-level data labels, destinations and provenance path
+**Known issues:** none
+
+### [3.1] Expected envelope and envelope check — 2026-10-11 14:03 IST — Owner: chetanagrawal721
+**What has changed:** `gateway/envelope.py`, `tests/test_envelope.py`.
+**Why:** R5/R6: the team has needed a deterministic answer to 'is the action doing more than was asked?'.
+**How:** Pure functions compare the measured effect with the envelope: every affected row must match the scope keys (by primary key or by a declared attribute), the primary-table row count and amount must stay within limits, and destinations must be expected. A missing required scope key yields the strictest envelope (at most one row). The `source` field is ready for the AI-built envelope of M5.2.
+**Tests:** T3.1-1..6 covered by `tests/test_envelope.py` (7 passed); the broad refund reports exactly 209 offending rows.
+**Deviations from plan:** none
+**Last-moment changes:** no
+**Suggested commit message:** M3.1: expected-effect envelope with deterministic inside/outside check
+**Known issues:** none
+
+### [3.2] Rules R01-R12, tiers and decide() — 2026-10-11 14:03 IST — Owner: chetanagrawal721
+**What has changed:** `gateway/rules.py`, `gateway/decide.py`, `gateway/engine.py` (full propose pipeline: identify, resolve, envelope, budget, decide, log), `gateway/db.py` (`meta_json` column), `tests/test_rules.py`.
+**Why:** R2/R4/R5: one deterministic function has had to turn the measured effect into ALLOW, HOLD or BLOCK with a rule ID, and to expose the request-level (mode B) verdict for side-by-side display.
+**How:** `decide()` takes plain dicts and the policy, so identical inputs give identical output and a stored decision can be replayed. The first BLOCK among R01-R06 wins, otherwise the strongest HOLD of R07-R10, otherwise R12; `final = max(rules, AI)`. Tiers follow the reversibility x blast-radius table; an override list in the policy lowers the tier for public or internal-only content. When AI is unavailable and the agent supplied an intent claim that therefore cannot be checked, the tier is raised by one level.
+**Tests:** T3.2-1..12 covered by `tests/test_rules.py` (16 passed); the bank cases A01, A08, A19-A21 return the pre-registered mode C verdicts.
+**Deviations from plan:** The honeytoken freeze (agent frozen flag) has been implemented here because T3.2-7 requires it; M6.3 adds the unfreeze endpoint and replay.
+**Last-moment changes:** no
+**Suggested commit message:** M3.2: deterministic rules R01-R12, tiers, decide() and baseline verdict (R2, R4)
+**Known issues:** none
+
+### [3.3] Resource-keyed budgets — 2026-10-11 14:03 IST — Owner: chetanagrawal721
+**What has changed:** `gateway/budgets.py`, `tests/test_budgets.py`.
+**Why:** R08: cumulative limits charged on the measured effect stop salami slicing and budget splitting across agents.
+**How:** Budgets are sliding one-hour windows keyed by (agent, resource) and by (resource), stored in the domain database. Check and charge run in one `BEGIN IMMEDIATE` transaction so concurrent callers cannot exceed a limit. Only executed actions are charged; blocked ones are not. The budget snapshot is stored in the audit payload.
+**Tests:** T3.3-1..7 covered by `tests/test_budgets.py` (6 passed); full suite 95 passed.
+**Deviations from plan:** none
+**Last-moment changes:** no
+**Suggested commit message:** M3.3: resource-keyed cumulative budgets charged on resolved effect (R08)
 **Known issues:** none

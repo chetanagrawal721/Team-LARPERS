@@ -210,9 +210,9 @@ Additions to the suite after pre-registration must be logged in §11 with the re
 - [ ] **Phase 2 checkpoint**
 
 ### Phase 3 — Decision engine
-- [ ] 3.1 Envelope and envelope check — chetanagrawal721
-- [ ] 3.2 Rules R01–R12, tiers, decide() — chetanagrawal721
-- [ ] 3.3 Resource-keyed budgets — chetanagrawal721
+- [x] 3.1 Envelope and envelope check — chetanagrawal721
+- [x] 3.2 Rules R01–R12, tiers, decide() — chetanagrawal721
+- [x] 3.3 Resource-keyed budgets — chetanagrawal721
 - [ ] **Phase 3 checkpoint**
 
 ### Phase 4 — Seal & execution (hour-6 gate)
@@ -295,6 +295,9 @@ One line per milestone push, decision, or notable event. Newest at the bottom.
 | 2026-10-11 14:00 | chetanagrawal721 | Milestone | M2.1 — the deterministic bank seed and sandbox copy utility have been implemented. | |
 | 2026-10-11 14:00 | chetanagrawal721 | Milestone | M2.2 — sandbox resolvers returning exact effects have been implemented. | |
 | 2026-10-11 14:00 | chetanagrawal721 | Milestone | M2.3 — effect-level data labels, destinations and provenance have been implemented. | |
+| 2026-10-11 14:03 | chetanagrawal721 | Milestone | M3.1 — the expected-effect envelope and its deterministic check have been implemented. | |
+| 2026-10-11 14:03 | chetanagrawal721 | Milestone | M3.2 — the deterministic rules, tiers, decide() and baseline verdict have been implemented. | |
+| 2026-10-11 14:03 | chetanagrawal721 | Milestone | M3.3 — resource-keyed cumulative budgets have been implemented. | |
 
 **Entry types:** Decision · Design · Review · Milestone · Fix · Change · Test · Result · Docs
 
