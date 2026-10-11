@@ -78,6 +78,11 @@ class Policy:
         """Version of the label catalog: hash of labels + destination clearances."""
         return canonical_hash({"labels": self.labels, "destinations": self.destinations})[:16]
 
+    @property
+    def rules_hash(self) -> str:
+        """Policy version excluding the label catalog, so policy drift and label drift are told apart."""
+        return canonical_hash({k: v for k, v in self.raw.items() if k not in ("labels", "destinations")})
+
     def envelope_default(self, action: str) -> dict:
         e = dict(self.model.envelopes.get(action, {}))
         return {"max_rows": e.get("max_rows"),
