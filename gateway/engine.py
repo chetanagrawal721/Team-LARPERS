@@ -56,6 +56,11 @@ class Engine:
         self.state.execute("INSERT OR IGNORE INTO policy_versions (hash, policy_json, ts) VALUES (?,?,?)",
                            (self.policy.hash, self.policy.to_json(), int(clock.now())))
 
+    def policy_version_number(self) -> int:
+        """1-based position of the current policy among every version this gateway has stored."""
+        rows = [r["hash"] for r in self.state.execute("SELECT hash FROM policy_versions ORDER BY rowid")]
+        return rows.index(self.policy.hash) + 1 if self.policy.hash in rows else len(rows) + 1
+
     def reload_policy(self) -> str:
         with self.lock:
             self.policy = load_policy(self.domain)
@@ -278,7 +283,7 @@ class Engine:
                 "label_path_hash": resolver.label_path_hash(effect) if effect else "",
                 "label_catalog_ver": pol.label_catalog_ver}
         payload = {"proposal": {k: v for k, v in p_raw.items() if k != "sig"}, "inputs": inp, "outcome": out,
-                   "meta": meta, "requeue": requeue}
+                   "meta": meta, "requeue": requeue, "decision_id": d.id}
         audit.append(self.state, d.created_ts, p.agent, p.action, payload, d.verdict, d.rule, d.decision_path,
                      pol.hash)
         if effect is not None and d.verdict != "BLOCK":

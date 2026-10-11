@@ -29,12 +29,15 @@ CURRENT = {"domain": "bank"}
 BUS = Bus()
 
 
-def engine() -> Engine:
-    d = CURRENT["domain"]
+def get_engine(d: str) -> Engine:
     if d not in ENGINES:
         ENGINES[d] = Engine(d)
     ENGINES[d].bus = BUS
     return ENGINES[d]
+
+
+def engine() -> Engine:
+    return get_engine(CURRENT["domain"])
 
 
 @app.exception_handler(GateError)
@@ -163,10 +166,6 @@ def agent_unfreeze(agent: str, x_user: str | None = Header(None), x_token: str |
     return {"agent": agent, "frozen": False}
 
 
-@app.get("/agents")
-def agents():
-    e = engine()
-    return [{"agent": a, "frozen": e.is_frozen(a)} for a in e.policy.agents]
 
 
 @app.post("/domain/{name}")
@@ -235,12 +234,12 @@ LAB = {"last": None}
 
 
 @app.post("/lab/run")
-def lab_run(mode: str = "ALL"):
+def lab_run(mode: str = "ALL", ai_checks: bool = False):
     from lab import runner
     modes = runner.MODES if mode.upper() == "ALL" else tuple(m for m in mode.upper() if m in runner.MODES)
     if not modes:
         raise HTTPException(422, "mode must be A, B, C or ALL")
-    LAB["last"] = runner.run_suite(modes=modes)
+    LAB["last"] = runner.run_suite(modes=modes, with_ai=ai_checks)
     return LAB["last"]
 
 
@@ -272,6 +271,82 @@ def demo_reset():
     BUS.history.clear()
     CURRENT["domain"] = "bank"
     return {"reset": list(config.DOMAINS)}
+
+
+
+# ---------------------------------------------------------------------------------------------- read-only views
+@app.get("/orgs")
+def orgs():
+    out = []
+    for d in config.DOMAINS:
+        e = get_engine(d)
+        out.append({"domain": d, "org": e.policy.org, "version": e.policy_version_number(), "hash": e.policy.hash,
+                    "verified": True, "current": d == CURRENT["domain"]})
+    return out
+
+
+@app.get("/policy")
+def policy_view(domain: str | None = None):
+    import datetime
+    e = get_engine(domain or CURRENT["domain"])
+    pol, path = e.policy, config.POLICY_DIR / f"{(domain or CURRENT['domain'])}.yaml"
+    m = pol.model
+    return {"domain": pol.domain, "org": pol.org, "version": e.policy_version_number(), "hash": pol.hash,
+            "updated": datetime.datetime.fromtimestamp(path.stat().st_mtime).isoformat(timespec="minutes"),
+            "yaml": path.read_text(encoding="utf-8"),
+            "limits": {"envelopes": m.envelopes, "tiers": m.tiers, "protected": m.protected,
+                       "tier_overrides": m.tier_overrides, "shadow_mode": m.shadow_mode},
+            "labels": {"labels": m.labels, "destinations": m.destinations, "catalog_version": pol.label_catalog_ver},
+            "budgets": m.budgets,
+            "counts": {"labels": len(m.labels), "envelopes": len(m.envelopes), "budgets": len(m.budgets),
+                       "agents": len(m.agents), "protected": len(m.protected)}}
+
+
+@app.get("/agents")
+def agents_view():
+    """Every registered agent across the organisations, with live status and budget use."""
+    from . import budgets, shadow as shadow_mod
+    from . import clock
+    out = []
+    for d in config.DOMAINS:
+        e = get_engine(d)
+        conn = e.real_conn()
+        try:
+            for name, cfg in e.policy.agents.items():
+                status = "FROZEN" if e.is_frozen(name) else ("SHADOW" if shadow_mod.active_session(e, name) else "ACTIVE")
+                pct = 0
+                for act in cfg.get("actions", []):
+                    for _, key, limit in budgets.keys_for(e.policy, name, act):
+                        pct = max(pct, round(100 * budgets.used(conn, key, clock.now()) / limit))
+                out.append({"agent": name, "domain": d, "org": e.policy.org, "actions": cfg.get("actions", []),
+                            "acts_for": cfg.get("acts_for", ""), "status": status, "budget_pct": min(pct, 100)})
+        finally:
+            conn.close()
+    return out
+
+
+@app.get("/sheet/{decision_id}")
+def approval_sheet(decision_id: str):
+    """Everything an approver needs to see on the approval sheet, assembled by the gateway (never by the agent)."""
+    from .policy_loader import load_users
+    e = engine()
+    rec = e.get_record(decision_id)
+    if not rec:
+        raise HTTPException(404, "no such decision")
+    users = load_users()
+    req = rec["requester"]
+    ttl = int(e.policy.model.tiers.get("approval_ttl_seconds", 900))
+    d = rec["decision"]
+    return {"decision": d, "requester": req, "requester_name": users.get(req, {}).get("name", req),
+            "requester_role": users.get(req, {}).get("roles", {}).get(e.domain, ""),
+            "expires_ts": d.created_ts + ttl, "ttl_seconds": ttl, "args": rec["proposal"].get("args", {}),
+            "instruction": rec["proposal"].get("user_instruction", "")}
+
+
+@app.get("/audit/{seq}/evidence")
+def audit_evidence(seq: int):
+    from . import evidence
+    return evidence.build(engine(), seq)
 
 
 @app.post("/demo/{scenario}")
