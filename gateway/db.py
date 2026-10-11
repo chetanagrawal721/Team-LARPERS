@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS audit_log (
   decision_path TEXT, policy_hash TEXT, entry_hash TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS decisions (
   id TEXT PRIMARY KEY, created_ts INTEGER, agent TEXT, action TEXT, requester TEXT,
-  proposal_json TEXT, decision_json TEXT, status TEXT, parent_id TEXT);
+  proposal_json TEXT, decision_json TEXT, status TEXT, parent_id TEXT, meta_json TEXT);
 CREATE TABLE IF NOT EXISTS seals (
   decision_id TEXT PRIMARY KEY, token_json TEXT NOT NULL, nonce TEXT UNIQUE, used INTEGER DEFAULT 0);
 CREATE TABLE IF NOT EXISTS approvals (
