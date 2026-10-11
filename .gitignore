@@ -1,0 +1,14 @@
+.env
+*.env
+*.env.local
+.venv/
+__pycache__/
+.pytest_cache/
+node_modules/
+frontend/dist/
+gateway/data/*.db
+gateway/data/sandbox/
+*.log
+audit_export*.json
+lab/results_*.json
+.DS_Store

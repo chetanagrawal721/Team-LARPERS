@@ -1,0 +1,55 @@
+org: Sahyadri Bank
+domain: bank
+db: bank.db
+currency: INR
+internal_domains: [sahyadribank.example]
+agents:
+  refund-agent:   {actions: [refund, lookup], acts_for: ops_staff, default_user: meera}
+  refund-agent-2: {actions: [refund, lookup], acts_for: ops_staff, default_user: meera}
+  refund-agent-3: {actions: [refund, lookup], acts_for: ops_staff, default_user: meera}
+  ops-agent:      {actions: [lookup, update_contact, transfer, payee_change, grant_role], acts_for: ops_officer, default_user: priya}
+roles:
+  ops_staff:          [lookup, update_contact, refund]
+  ops_officer:        [lookup, update_contact, refund, payee_change]
+  branch_manager:     [lookup, update_contact, refund, transfer, payee_change, grant_role]
+  compliance_officer: [lookup]
+actions:
+  lookup:         {reversible: snapshot,     primary_table: customers}
+  update_contact: {reversible: snapshot,     primary_table: customers}
+  refund:         {reversible: compensating, primary_table: refunds}
+  transfer:       {reversible: none,         primary_table: invoices}
+  payee_change:   {reversible: snapshot,     primary_table: vendors}
+  grant_role:     {reversible: snapshot,     primary_table: grants}
+labels:
+  customers.account_no: SECRET
+  customers.phone: PII
+  customers.email: PII
+  customers.name: PII
+  vendors.account: INTERNAL
+  transactions.*: INTERNAL
+  refunds.*: INTERNAL
+  invoices.*: INTERNAL
+  inbox.*: UNTRUSTED
+destinations:
+  internal_email: INTERNAL
+  external_email: PUBLIC
+  rbi_reporting: PII
+  payment_rail: INTERNAL
+  shared_drive: INTERNAL
+envelopes:
+  refund:         {max_rows: 5,  max_amount: 20000}
+  transfer:       {max_amount: 50000}
+  update_contact: {max_rows: 1}
+  payee_change:   {max_rows: 1}
+  grant_role:     {max_rows: 1}
+  lookup:         {max_rows: 0}
+tiers:
+  two_approvers_above_amount: 200000
+  approval_ttl_seconds: 900
+tier_overrides: []
+protected: [payee_change, grant_role, audit_config]
+budgets:
+  refunds_per_hour:       {action: refund, amount: 100000, key: [resource]}
+  refunds_per_agent_hour: {action: refund, amount: 50000,  key: [agent, resource]}
+shadow_mode: {on_hold: true}
+honeytokens: [export_all_credentials]

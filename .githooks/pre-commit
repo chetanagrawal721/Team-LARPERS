@@ -1,0 +1,4 @@
+#!/bin/sh
+AUTHOR=$(git var GIT_AUTHOR_IDENT)
+echo "$AUTHOR" | grep -qE 'aryanketkar-15|Kanak-Agrawal-3008|chetanagrawal721|atharvg44|Aryan Ketkar' || {
+  echo "✖ Commit rejected: author is not a team member. Run: git config user.name <github-id>"; exit 1; }

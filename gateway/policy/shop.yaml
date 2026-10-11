@@ -1,0 +1,37 @@
+org: KartBazaar
+domain: shop
+db: shop.db
+currency: INR
+internal_domains: [kartbazaar.example]
+agents:
+  support-agent:   {actions: [lookup, write_file, send_email], acts_for: support_staff, default_user: meera}
+  marketing-agent: {actions: [send_email], acts_for: store_manager, default_user: priya}
+roles:
+  support_staff:      [lookup, write_file, send_email]
+  store_manager:      [lookup, write_file, send_email]
+  compliance_officer: [lookup]
+actions:
+  lookup:     {reversible: snapshot, primary_table: customers}
+  write_file: {reversible: snapshot, primary_table: files}
+  send_email: {reversible: none,     primary_table: recipients}
+labels:
+  customers.*: PII
+  mail_body.*: PUBLIC
+  mailing_lists.*: INTERNAL
+destinations:
+  internal_email: PII
+  external_email: PUBLIC
+  shared_drive: PII
+envelopes:
+  write_file: {max_rows: 1}
+  send_email: {max_rows: 1000}
+  lookup:     {max_rows: 0}
+tiers:
+  two_approvers_above_amount: 200000
+  approval_ttl_seconds: 900
+tier_overrides:
+  - {action: send_email, labels_subset: [PUBLIC], tier: T1}
+protected: [grant_role, audit_config]
+budgets: {}
+shadow_mode: {on_hold: true}
+honeytokens: [export_all_credentials]
