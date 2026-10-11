@@ -33,7 +33,14 @@ def connect(path) -> sqlite3.Connection:
     return conn
 
 
+MIGRATIONS = [("decisions", "meta_json", "TEXT")]   # columns added after the first release of the schema
+
+
 def init_state(path) -> sqlite3.Connection:
     conn = connect(path)
     conn.executescript(STATE_SCHEMA)
+    for table, column, ctype in MIGRATIONS:      # state files created by older builds are upgraded in place
+        cols = [r["name"] for r in conn.execute(f"PRAGMA table_info({table})")]
+        if column not in cols:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {ctype}")
     return conn

@@ -264,6 +264,8 @@ class Engine:
             created_ts=int(clock.now()))
         if dry:
             return d
+        if self.mode == "C" and d.verdict in ("BLOCK", "HOLD") and effect is not None and env is not None:
+            d.safe_version = safe_version.compute(self, p, d, env)
         meta = {"human": human, "state_ver": measured.state_ver if measured else "",
                 "effect_hash": resolver.effect_hash(effect) if effect else "",
                 "label_path_hash": resolver.label_path_hash(effect) if effect else "",
@@ -277,10 +279,6 @@ class Engine:
         self.save_decision(d, p_raw, requester=human, meta=meta, parent_id=parent_id)
         self.emit("decision", d.id, verdict=d.verdict, rule=d.rule, reason=d.reason, agent=p.agent,
                   action=p.action, tier=d.tier)
-        if self.mode == "C" and d.verdict in ("BLOCK", "HOLD") and effect is not None and env is not None:
-            d.safe_version = safe_version.compute(self, p, d, env)
-            if d.safe_version:
-                self.save_decision(d)
         if self.mode == "C" and shadow.route(self, d, p, human, inp, measured):
             return d
         if d.verdict == "ALLOW":
