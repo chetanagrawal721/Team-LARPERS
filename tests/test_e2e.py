@@ -93,7 +93,8 @@ def test_authorship_only_the_four_team_ids():
     out = subprocess.run(["git", "log", "--format=%an"], capture_output=True, text=True)
     if out.returncode != 0 or not out.stdout.strip():
         pytest.skip("no git history")
-    allowed = {"aryanketkar-15", "chetanagrawal721", "Kanak-Agrawal-3008", "atharvg44"}
+    allowed = {"aryanketkar-15", "chetanagrawal721", "Kanak-Agrawal-3008", "atharvg44",
+               "Atharv Gaikwad"}      # display name on the snapshot commit pushed by atharvg44
     assert set(out.stdout.split("\n")) - {""} <= allowed
 
 
