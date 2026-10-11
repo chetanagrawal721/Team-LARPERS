@@ -71,3 +71,11 @@ def test_lab_endpoints(client):
                                        "user_instruction": "Refund C-1042's duplicate March charges"})
     assert r.json() == {"A": "ALLOW", "B": "ALLOW", "C": "BLOCK"}
     assert client.post("/lab/run?mode=Z").status_code == 422
+
+
+def test_lab_is_rules_only_by_default_and_restores_ai_state(monkeypatch):
+    from gateway import ai
+    ai.STATE["force"] = None
+    out = runner.run_suite(cases=subset(["A01"]), modes=("C",), save=False)
+    assert out["ai"] == "off" and ai.STATE["force"] is None
+    assert out["cases"][0]["C"]["attack"] == "BLOCK"

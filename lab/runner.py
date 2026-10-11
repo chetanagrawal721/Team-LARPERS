@@ -225,10 +225,13 @@ def suite_commit() -> dict:
         return {"hash": "unknown", "time": ""}
 
 
-def run_suite(modes=MODES, cases=None, save: bool = True) -> dict:
+def run_suite(modes=MODES, cases=None, save: bool = True, with_ai: bool = False) -> dict:
+    """Deterministic by default: the live AI is switched off for the run unless `with_ai` is set (slower, can vary)."""
     suite = cases if cases is not None else load_suite()
     ws = Workspace()
     started = time.time()
+    previous = ai.STATE["force"]
+    ai.STATE["force"] = None if with_ai else "off"
     try:
         rows = []
         for case in suite:
@@ -239,6 +242,7 @@ def run_suite(modes=MODES, cases=None, save: bool = True) -> dict:
                 row[m] = run_case(ws, case, m)
             rows.append(row)
     finally:
+        ai.STATE["force"] = previous
         ws.cleanup()
     summary = {}
     for m in modes:
@@ -260,7 +264,7 @@ def run_suite(modes=MODES, cases=None, save: bool = True) -> dict:
                 misses.append({"id": r["id"], "title": r["title"], "what": "twin outcome differs from expectation",
                                "outcome": r["C"]["twin"], "expected": r["expected"]["twin_C"]})
     result = {"suite_commit": suite_commit(), "ran_at": datetime.datetime.now().isoformat(timespec="seconds"),
-              "seconds": round(time.time() - started, 1), "summary": summary, "cases": rows, "misses": misses,
+              "seconds": round(time.time() - started, 1), "ai": "live" if with_ai else "off", "summary": summary, "cases": rows, "misses": misses,
               "known_limits": ["data moved through channels the gateway never sees", "PII paraphrased into free text is best-effort"]}
     if save:
         out = ROOT / "lab" / f"results_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
@@ -276,9 +280,12 @@ def run_custom(custom: dict) -> dict:
             "twin": {"agent": custom.get("agent", ""), "action": "lookup", "args": {}}}
     case["attack"]["args"] = custom.get("args") or {}
     ws = Workspace()
+    previous = ai.STATE["force"]
+    ai.STATE["force"] = None if custom.get("ai") == "on" else "off"
     try:
         return {m: run_spec(ws.engine(case["domain"], m), case, case["attack"]) for m in MODES}
     finally:
+        ai.STATE["force"] = previous
         ws.cleanup()
 
 
