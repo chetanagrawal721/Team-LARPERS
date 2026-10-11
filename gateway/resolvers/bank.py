@@ -106,13 +106,15 @@ class Refund(Resolver):
         only = args.get("only")
         if only is not None:
             rows = [r for r in rows if "RF-" + r[0] in set(only)]
+        names = {cid: n for cid, n in conn.execute("SELECT id, name FROM customers")}
+        row_names = {"refunds": {"RF-" + tid: names.get(cid, "") for tid, cid, _ in rows}}
         total = 0
         for tid, cid, amt in rows:
             conn.execute("INSERT INTO refunds (id, txn_id, customer_id, amount_minor, ts) VALUES (?,?,?,?,?)",
                          ("RF-" + tid, tid, cid, amt, ctx.now))
             total += amt
         return {"amount_minor": total, "destinations": ["payment_rail"] if rows else [],
-                "columns": [("refunds", "*")]}
+                "columns": [("refunds", "*")], "row_names": row_names}
 
 
 class Transfer(Resolver):
@@ -151,6 +153,8 @@ class Transfer(Resolver):
                 "WHERE i.status='pending' ORDER BY i.id").fetchall()
         if args.get("only") is not None:
             rows = [r for r in rows if r[0] in set(args["only"])]
+        vnames = {vid: n for vid, n in conn.execute("SELECT id, name FROM vendors")}
+        row_names = {"invoices": {r[0]: vnames.get(r[1], "") for r in rows}}
         total, recipients = 0, set()
         for iid, vid, amt, account in rows:
             conn.execute("UPDATE invoices SET status='paid', paid_ts=? WHERE id=?", (ctx.now, iid))
@@ -164,7 +168,7 @@ class Transfer(Resolver):
             recipients.add(account)
         return {"amount_minor": total, "recipients": sorted(recipients),
                 "destinations": ["payment_rail"] if rows else [],
-                "columns": [("invoices", "*"), ("transactions", "*")]}
+                "columns": [("invoices", "*"), ("transactions", "*")], "row_names": row_names}
 
 
 class PayeeChange(Resolver):

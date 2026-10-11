@@ -106,6 +106,10 @@ def measure(resolver: Resolver, conn: sqlite3.Connection, args: dict, ctx: Ctx) 
         if items:
             rows[t] = sorted(items)
             meta[t] = {pk: {"op": "disclosed", **m} for pk, m in items.items()}
+    for t, names in (extras.get("row_names") or {}).items():
+        for pk, nm in names.items():
+            if pk in meta.get(t, {}):
+                meta[t][pk]["name"] = nm
     policy = ctx.policy
     lbls, path = labels_mod.label_effect(policy, rows, extras)
     dests = sorted(set(extras.get("destinations", [])))

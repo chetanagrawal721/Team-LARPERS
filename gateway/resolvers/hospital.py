@@ -50,12 +50,14 @@ class SendReport(Resolver):
             ids = [r[0] for r in conn.execute("SELECT id FROM patients ORDER BY id")]
         else:
             ids = [args["patient"]]
+        pnames = {pid: n for pid, n in conn.execute("SELECT id, name FROM patients")}
         conn.execute("INSERT INTO outbox (kind, recipient, subject, body, payload_json, status, created_ts, decision_id)"
                      " VALUES ('email',?,?,?,?,'pending',?,?)",
                      (args["to"], str(args.get("subject", "Patient report")), str(args.get("body", "")),
                       '{"patients": %d}' % len(ids), ctx.now, ctx.decision_id))
         return {"recipients": [args["to"]], "destinations": [labels_mod.classify_address(ctx.policy, args["to"])],
                 "virtual_rows": {"disclosed": {pid: {"patient_id": pid} for pid in ids}},
+                "row_names": {"disclosed": {pid: pnames.get(pid, "") for pid in ids}},
                 "columns": [("reports", "*"), ("patients", "*")]}
 
 
