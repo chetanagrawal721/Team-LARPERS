@@ -267,6 +267,7 @@ Record every change made after Phase 0 to the contract, suite, scope or design.
 | 2026-10-11 | Team | Expected-effect envelope and Shadow Mode have been added | Deterministic "more than asked" check; reduced approval fatigue | New milestones 3.1, 5.2, 6.2 |
 | 2026-10-11 | Team | Demo has been expanded to three domains | Demonstrate generality | Milestone 7.2; hospital is cuttable |
 | 2026-10-11 | atharvg44 | Case A23 has been added to the paired suite (budget split across three agents, 120 refunds) | Pre-registered case A10 (90 refunds) stays inside both budget limits (Rs 90,000 of the Rs 1,00,000 resource budget), so the gateway correctly allows it; A10 is retained and reported as a miss, and A23 has been added with a corrected volume | Mode C stops A23; A10 remains a reported miss |
+| 2026-10-11 | atharvg44 | The event contract has gained three event types (`agent`, `pipeline`, `sandbox`) and the endpoints `/agent/step` and `/agent/mode` | The live feed of agent steps, gateway checks and sandbox rows | Additive; no existing test changed |
 | | | | | |
 
 ---

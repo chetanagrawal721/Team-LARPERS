@@ -73,6 +73,25 @@ class Engine:
         if self.bus is not None:
             self.bus.publish(Event(type=type_, ts=int(clock.now()), decision_id=decision_id, data=data))
 
+    def trace(self, tid: str, text: str, status: str = "ok", **data) -> None:
+        """One line of the live pipeline feed: what the gateway is doing right now, and whether it passed."""
+        self.emit("pipeline", data.pop("decision_id", None), trace=tid, text=text, status=status, **data)
+
+    def emit_sandbox(self, tid: str, p, effect, chk) -> None:
+        """Every row the sandbox run touched, each marked inside (approved) or outside (denied) what was asked."""
+        rows = []
+        for t, pks in effect.rows.items():
+            bad = set((chk.offending_rows or {}).get(t, []))
+            for pk in pks:
+                m = effect.row_meta.get(t, {}).get(pk, {})
+                rows.append({"table": t, "pk": pk, "op": m.get("op", ""), "name": m.get("name", ""),
+                             "who": m.get("customer_id") or m.get("patient_id") or m.get("vendor_id") or "",
+                             "amount_minor": m.get("amount_minor"), "inside": pk not in bad})
+        total = len(rows)
+        rows.sort(key=lambda r: (not r["inside"], r["table"], r["pk"]))
+        self.emit("sandbox", None, trace=tid, agent=p.agent, action=p.action, total=total,
+                  outside=sum(1 for r in rows if not r["inside"]), rows=rows[:300], truncated=total > 300)
+
     def new_id(self) -> str:
         return "D-" + uuid.uuid4().hex[:8]
 
@@ -133,6 +152,7 @@ class Engine:
         audit.append(self.state, d.created_ts, agent, action, payload, "BLOCK", rule, decision_path,
                      self.policy.hash)
         self.save_decision(d, p_raw)
+        self.trace(p_raw.get("nonce", d.id), f"Denied ({rule}): {reason}", "denied", agent=agent, action=action, decision_id=d.id)
         self.emit("decision", d.id, verdict="BLOCK", rule=rule, reason=reason, agent=agent, action=action)
         return d
 
@@ -140,11 +160,13 @@ class Engine:
     def propose(self, p_raw: dict) -> Decision:
         with self.lock:
             p = Proposal(**p_raw)
+            self.trace(p.nonce, f"Request received: {p.agent} wants to {p.action.replace('_', ' ')}", "info", agent=p.agent, action=p.action)
             if p.agent not in self.policy.agents:
                 return self.refuse(p_raw, p.agent, p.action, "R02", f"unknown agent {p.agent!r}")
             ok, why = verify.verify_proposal(self.state, p)
             if not ok:
                 return self.refuse(p_raw, p.agent, p.action, "R01", why)
+            self.trace(p.nonce, "Signature, timestamp and nonce verified", "ok")
             return self._analyse(p, p_raw)
 
     def touched_labels(self, agent: str) -> set:
@@ -219,10 +241,19 @@ class Engine:
                "self_change": p.action == "grant_role" and p.args.get("target") in pol.agents,
                "effect": None, "envelope": None, "check": None, "budget_exceeded": False,
                "ai": {"escalation": "NONE", "status": "n/a", "reason": ""}}
+        tid = p.nonce
+        if not dry:
+            role = registry.human_role(pol, human) or "unknown role"
+            self.trace(tid, f"Registry: {p.agent} may {p.action.replace('_', ' ')}: {'yes' if known else 'NO (default deny)'}",
+                       "ok" if known else "denied")
+            self.trace(tid, f"Permissions: acting for {human or 'nobody'} ({role.replace('_', ' ')}): "
+                            f"{'allowed' if inp['permitted'] else 'NOT allowed for this person'}", "ok" if inp["permitted"] else "denied")
         early = (not known) or honey or inp["frozen"] or (not inp["permitted"]) or inp["self_change"]
         if early:
             return self._finish(p, p_raw, human, inp, None, None, parent_id, requeue, dry)
         did = self.new_id()
+        if not dry:
+            self.trace(tid, "Sandbox run: applying the action to a copy of the database (real data is not touched)", "info")
         try:
             res = resolvers.get(self.domain, p.action)
             measured = resolver.resolve(res, self.real_path, p.args,
@@ -238,6 +269,19 @@ class Engine:
         else:
             env, env_info = ai_layer.build_envelope(pol, p.action, p.args, p.user_instruction)
         chk = envelope_mod.check(effect, env, pol)
+        if not dry:
+            n_rows = sum(len(v) for v in effect.rows.values())
+            amt = f", Rs {effect.amount_minor // 100:,}" if effect.amount_minor else ""
+            self.trace(tid, f"Sandbox measured: {n_rows:,} rows{amt}" + (f", {len(effect.recipients)} recipients" if effect.recipients else ""), "info")
+            asked = ", ".join(f"{k} {v}" for k, v in env.scope.items()) or "no specific scope"
+            self.trace(tid, f"Asked for ({'AI read your request' if env.source == 'ai_from_instruction' else 'policy default'}): {asked}"
+                            + (f", up to {env.max_rows} rows" if env.max_rows is not None else ""), "info")
+            if chk.inside:
+                self.trace(tid, "Compared with what was asked: every row is inside the request", "ok")
+            else:
+                n_out = sum(len(v) for v in chk.offending_rows.values()) or chk.over_rows
+                self.trace(tid, f"Compared with what was asked: {n_out:,} rows are OUTSIDE the request", "denied")
+            self.emit_sandbox(tid, p, effect, chk)
         conn = self.real_conn()
         try:
             bud = (budgets.check(conn, pol, p.agent, p.action, effect.amount_minor) if self.mode == "C"
@@ -246,6 +290,13 @@ class Engine:
             conn.close()
         ai = ({"escalation": "NONE", "status": "n/a", "reason": ""} if dry or self.mode != "C"
               else self.ai_advice(p, effect, env_info))
+        if not dry:
+            if bud["exceeded"]:
+                self.trace(tid, "Budget: this would exceed a cumulative limit", "warn")
+            st = ai.get("status")
+            self.trace(tid, "AI checks: " + ("done, " + (f"escalate to {ai['escalation']}: {ai['reason']}" if ai["escalation"] != "NONE" else "nothing to flag")
+                                             if st == "ok" else "not available, using the rules alone (stricter fallback)"),
+                       "warn" if ai["escalation"] != "NONE" else ("ok" if st == "ok" else "info"))
         inp.update(effect=effect.model_dump(), envelope=env.model_dump(), check=chk.model_dump(),
                    budget_exceeded=bud["exceeded"], budget=bud["snapshot"], ai=ai,
                    intent_unverified=bool(p.intent) and ai.get("status") != "ok")
@@ -276,8 +327,12 @@ class Engine:
             created_ts=int(clock.now()))
         if dry:
             return d
+        self.trace(p.nonce, f"Rules decided {d.verdict} ({d.rule}): {d.reason}", {"ALLOW": "ok", "HOLD": "warn", "BLOCK": "denied"}[d.verdict],
+                   decision_id=d.id, agent=p.agent, action=p.action)
         if self.mode == "C" and d.verdict in ("BLOCK", "HOLD") and effect is not None and env is not None:
             d.safe_version = safe_version.compute(self, p, d, env)
+            if d.safe_version:
+                self.trace(p.nonce, f"Smallest safe version found: {d.safe_version['description']} (would be {d.safe_version['verdict']})", "info", decision_id=d.id)
         meta = {"human": human, "state_ver": measured.state_ver if measured else "",
                 "effect_hash": resolver.effect_hash(effect) if effect else "",
                 "label_path_hash": resolver.label_path_hash(effect) if effect else "",

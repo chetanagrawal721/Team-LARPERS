@@ -88,7 +88,7 @@ class ApprovalRequest(BaseModel):
 
 class Event(BaseModel):
     type: Literal["decision", "approval", "execution", "void", "chat", "shadow",
-                  "audit", "freeze", "domain", "ai"]
+                  "audit", "freeze", "domain", "ai", "agent", "pipeline", "sandbox"]
     ts: int
     decision_id: str | None = None
     data: dict = Field(default_factory=dict)

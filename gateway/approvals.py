@@ -53,6 +53,7 @@ def approve(engine, user: dict, decision_id: str, note: str = "") -> Decision:
         engine.state.execute("INSERT INTO approvals (decision_id, user, action, ts, note) VALUES (?,?,?,?,?)",
                              (decision_id, user["id"], "approve", int(clock.now()), note))
         d.approvals = d.approvals + [user["id"]]
+        engine.trace(d.id, f"{user['id'].title()} approved ({len(d.approvals)} of {max(d.approvals_needed, 1)})", "ok", decision_id=d.id)
         if len(set(d.approvals)) >= max(d.approvals_needed, 1):
             meta, p = rec["meta"], rec["proposal"]
             seal.create(engine.state, decision_id=d.id, agent=p["agent"], action=p["action"], args=p["args"],

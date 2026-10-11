@@ -210,24 +210,71 @@ def _spawn(name: str, text: str | None = None) -> dict:
     want = scenarios.DOMAIN_OF[name]
     if CURRENT["domain"] != want:
         switch_domain(want)
-    env = {k: v for k, v in os.environ.items() if k.startswith("AGENT_KEY_") or k in ("PATH", "SYSTEMROOT", "TEMP", "TMP")}
-    env["GATEWAY_URL"] = os.environ.get("PUBLIC_GATEWAY_URL", "http://127.0.0.1:8000")
+    env = _agent_env()
     args = [sys.executable, "-m", "agents.run", name] + (["--text", text] if text else [])
     p = subprocess.Popen(args, cwd=str(config.ROOT), env=env)
     return {"started": name, "pid": p.pid, "domain": want}
 
 
+AGENT = {"mode": None}      # None = decide from configuration; "llm" or "scripted"
+
+
+def _llm_configured() -> bool:
+    return os.environ.get("AI_PROVIDER", "none").lower() in ("openrouter", "gemini", "ollama") and bool(os.environ.get("AI_MODEL"))
+
+
+def _agent_mode() -> str:
+    return AGENT["mode"] or ("llm" if _llm_configured() else "scripted")
+
+
+def _agent_env() -> dict:
+    """The agent process gets its signing keys and its own model credentials, nothing of the gateway's."""
+    keep = ("PATH", "SYSTEMROOT", "TEMP", "TMP", "AI_PROVIDER", "AI_MODEL", "AI_API_KEY", "AI_TIMEOUT_SECONDS", "OLLAMA_URL")
+    env = {k: v for k, v in os.environ.items() if k.startswith("AGENT_KEY_") or k in keep}
+    env["GATEWAY_URL"] = os.environ.get("PUBLIC_GATEWAY_URL", "http://127.0.0.1:8000")
+    return env
+
+
+@app.get("/agent/mode")
+def agent_mode_get():
+    return {"mode": _agent_mode(), "llm_configured": _llm_configured(), "provider": os.environ.get("AI_PROVIDER", "none"),
+            "model": os.environ.get("AI_MODEL", "")}
+
+
+@app.post("/agent/mode")
+def agent_mode_set(body: dict):
+    m = str(body.get("mode", ""))
+    if m not in ("llm", "scripted"):
+        raise HTTPException(422, "mode must be 'llm' or 'scripted'")
+    AGENT["mode"] = m
+    return agent_mode_get()
+
+
+@app.post("/agent/step")
+def agent_step(body: dict):
+    """The live agent reports each step (prompts, model replies, thoughts, tool calls) here for the live feed."""
+    BUS.publish(Event(type="agent", ts=int(__import__("time").time()),
+                      data={"run": str(body.get("run", ""))[:40], "kind": str(body.get("kind", ""))[:30],
+                            "text": str(body.get("text", ""))[:6000], "data": body.get("data") or {}}))
+    return {"ok": True}
+
+
 @app.post("/demo/chat")
 def demo_chat(body: dict):
+    """Every typed request goes to the live language-model agent; the keyword router is only the scripted-mode fallback."""
     from agents import scenarios
-    text = str(body.get("text", ""))[:500]
+    text = str(body.get("text", ""))[:1000].strip()
+    if not text:
+        raise HTTPException(422, "empty request")
+    if _agent_mode() == "llm":
+        p = subprocess.Popen([sys.executable, "-m", "agents.llm_agent", "--domain", CURRENT["domain"], "--text", text],
+                             cwd=str(config.ROOT), env=_agent_env())
+        return {"started": "llm-agent", "pid": p.pid, "domain": CURRENT["domain"], "mode": "llm"}
     name, _ = scenarios.from_text(text)
     if not name:
-        BUS.publish(Event(type="chat", ts=0, data={"from": "gate", "agent": "", "text": "This box sends requests to the agent (for example: refund C-1042's duplicate March charges, pay the pending invoices, share a report). Approvals, safe versions and execution are done with the buttons in the moderator console on the right."}))
-        return {"started": None}
+        BUS.publish(Event(type="chat", ts=0, data={"from": "gate", "agent": "", "text": "Scripted mode only understands refunds, contact updates, vendor changes, invoice payments, reports and mailings. Switch the agent to Live LLM to ask anything."}))
+        return {"started": None, "mode": "scripted"}
     return _spawn(name, text)
-
-
 
 
 LAB = {"last": None}

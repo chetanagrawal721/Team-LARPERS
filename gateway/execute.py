@@ -13,6 +13,7 @@ def _record_void(engine, rec: dict, d: Decision, drift: str, detail: str = "") -
     d.verdict, d.status, d.drift = "VOID", "void", drift
     d.reason = f"seal broken: {drift}" + (f" ({detail})" if detail else "")
     d.rule = "R6"
+    engine.trace(d.id, f"Seal BROKEN ({drift.replace('_', ' ')}{': ' + detail if detail else ''}). Nothing was executed.", "denied", decision_id=d.id)
     engine.save_decision(d)
     audit.append(engine.state, int(clock.now()), d.agent, d.action,
                  {"decision_id": d.id, "drift": drift, "detail": detail}, "VOID", "R6", d.decision_path,
@@ -61,7 +62,8 @@ def execute_sealed(engine, decision_id: str) -> Decision:
             _record_void(engine, rec, d, drift)
             _requeue(engine, rec, d)
             return d
-        # execute inside one transaction on the real database
+        engine.trace(decision_id, "Seal checked: arguments, policy and label catalogue unchanged", "ok", decision_id=decision_id)
+        engine.trace(decision_id, "Executing in one transaction: re-measuring the effect on the real database", "info", decision_id=decision_id)
         conn = engine.real_conn()
         try:
             conn.execute("BEGIN IMMEDIATE")
@@ -106,6 +108,7 @@ def execute_sealed(engine, decision_id: str) -> Decision:
         finally:
             conn.close()
         seal.mark_used(engine.state, d.id)
+        engine.trace(d.id, f"Committed: {sum(len(v) for v in m.effect.rows.values()):,} rows changed, identical to the sandbox result", "ok", decision_id=d.id)
         d.status = "done"
         d.drift = None
         engine.save_decision(d)
