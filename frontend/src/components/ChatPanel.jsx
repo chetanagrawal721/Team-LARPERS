@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { call, tidy } from "../api";
+import { tidy } from "../api";
 
 const SCENARIOS = {
   bank: [
@@ -15,17 +15,12 @@ const SCENARIOS = {
   ],
 };
 
-export default function ChatPanel({ domain, messages }) {
+export default function ChatPanel({ domain, messages, working, onSend, onRun }) {
   const [text, setText] = useState("");
-  const [busy, setBusy] = useState(false);
   const end = useRef(null);
-  useEffect(() => { end.current?.scrollIntoView({ block: "end" }); }, [messages]);
-  const send = async () => {
-    const t = text.trim(); if (!t || busy) return; setText(""); setBusy(true);
-    try { await call("/demo/chat", { method: "POST", body: { text: t } }); } catch { /* the offline banner covers this */ }
-    setBusy(false);
-  };
-  const run = (name) => call(`/demo/${name}`, { method: "POST" }).catch(() => {});
+  useEffect(() => { end.current?.scrollIntoView({ block: "end" }); }, [messages, working]);
+  const send = () => { const t = text.trim(); if (!t) return; setText(""); onSend(t); };
+  const run = (name) => onRun(name);
 
   return (
     <section className="flex flex-col h-full min-h-0 border-r border-[#d0d7de]" aria-label="Conversation">
@@ -41,6 +36,7 @@ export default function ChatPanel({ domain, messages }) {
         ) : (
           <div key={i} className="text-[13px]"><div className="label">{m.agent || "Agent"}</div>{m.text}</div>
         ))}
+        {working && <div className="text-[13px] text-[#59636e] flex items-center gap-2" role="status"><span className="inline-block w-2 h-2 rounded-full bg-[#0969da] animate-pulse" />Agent is working…</div>}
         <div ref={end} />
       </div>
       <div className="border-t border-[#d0d7de] p-3 space-y-2">
@@ -59,7 +55,7 @@ export default function ChatPanel({ domain, messages }) {
         <form className="flex gap-2" onSubmit={(e) => { e.preventDefault(); send(); }}>
           <input className="flex-1 bg-[#ffffff] border border-[#d0d7de] rounded-md px-3 py-2 text-[13px] placeholder:text-[#6e7781]" aria-label="Request to the agent"
                  placeholder="Ask the agent to do something" value={text} onChange={(e) => setText(e.target.value)} />
-          <button className="btn btn-primary" type="submit" disabled={busy || !text.trim()}>Send</button>
+          <button className="btn btn-primary" type="submit" disabled={!text.trim()}>Send</button>
         </form>
         <p className="text-[11px] text-[#6e7781]">Approvals and execution happen in the console on the right.</p>
       </div>

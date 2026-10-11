@@ -22,6 +22,9 @@ export default function App() {
   const [overlay, setOverlay] = useState(null);
   const [offline, setOffline] = useState(false);
   const seen = useRef(new Set());
+  const [working, setWorking] = useState(false);
+  const pendingUser = useRef([]);   // typed messages already shown, so the agent's echo of them is not shown twice
+  const workTimer = useRef(null);
   const lockSel = useRef(0);   // keep a voided decision on screen so its broken seal is visible
 
   const refresh = useCallback(async () => {
@@ -44,7 +47,12 @@ export default function App() {
   const onEvent = useCallback(async (e) => {
     if (e.id && seen.current.has(e.id)) return;
     seen.current.add(e.id);
-    if (e.type === "chat") setMessages((m) => [...m, e.data]);
+    if (e.type === "chat") {
+      const i = e.data.from === "user" ? pendingUser.current.indexOf(e.data.text) : -1;
+      if (i >= 0) { pendingUser.current.splice(i, 1); return; }          // already on screen
+      setMessages((m) => [...m, e.data]);
+      if (e.data.from !== "user") { setWorking(false); clearTimeout(workTimer.current); }
+    }
     if (e.type === "domain") loadMeta();
     if (["decision", "approval", "execution", "void", "shadow"].includes(e.type)) {
       await refresh();
@@ -57,6 +65,25 @@ export default function App() {
   }, [notify, refresh, loadMeta]);
   const online = useEvents(onEvent);
 
+  const sendRequest = async (text) => {
+    pendingUser.current.push(text);
+    setMessages((m) => [...m, { from: "user", text }]);
+    setWorking(true);
+    clearTimeout(workTimer.current);
+    workTimer.current = setTimeout(() => setWorking(false), 60000);
+    try { await call("/demo/chat", { method: "POST", body: { text } }); }
+    catch (e) {
+      setWorking(false);
+      setMessages((m) => [...m, { from: "gate", text: `The request could not be sent: ${e.message}. Check that the gateway is running.` }]);
+    }
+  };
+  const runScenario = async (name) => {
+    setWorking(true);
+    clearTimeout(workTimer.current);
+    workTimer.current = setTimeout(() => setWorking(false), 60000);
+    try { await call(`/demo/${name}`, { method: "POST" }); }
+    catch (e) { setWorking(false); setMessages((m) => [...m, { from: "gate", text: `The scenario could not be started: ${e.message}.` }]); }
+  };
   const switchDomain = async (d) => {
     try { await call(`/domain/${d}`, { method: "POST" }); setMessages([]); setSelected(null); await loadMeta(); await refresh(); }
     catch { notify("error", "Could not switch organisation."); }
@@ -70,7 +97,7 @@ export default function App() {
       {(offline || !online) && <div className="bg-[#cf222e22] border-b border-[#cf222e55] text-[#cf222e] text-center py-1.5 text-[13px]" role="alert">Cannot reach the gateway. Start it with ./run.sh and this page will reconnect on its own.</div>}
       {page === "lab" ? <div className="flex-1 min-h-0"><AttackLab /></div> : (
         <main className="flex-1 min-h-0 grid grid-cols-[minmax(300px,2fr)_3fr]">
-          <ChatPanel domain={domain} messages={messages} />
+          <ChatPanel domain={domain} messages={messages} working={working} onSend={sendRequest} onRun={runScenario} />
           <Console decisions={decisions} selectedId={selected} onSelect={setSelected}
                    onOpenDiff={(d) => setOverlay({ kind: "diff", d })} onOpenShadow={(sid) => setOverlay({ kind: "shadow", sid })}
                    onChanged={refresh} notify={notify} />
