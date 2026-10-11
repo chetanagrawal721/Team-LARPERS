@@ -67,7 +67,7 @@ export default function App() {
     <div className="h-full flex flex-col">
       <TopBar domain={domain} org={org} onDomain={switchDomain} ai={ai} onAi={toggleAi} page={page} onPage={setPage}
               online={online} onAudit={() => setOverlay({ kind: "audit" })} />
-      {(offline || !online) && <div className="bg-[#f8514922] border-b border-[#f8514955] text-[#ffa198] text-center py-1.5 text-[13px]" role="alert">Cannot reach the gateway. Start it with ./run.sh and this page will reconnect on its own.</div>}
+      {(offline || !online) && <div className="bg-[#cf222e22] border-b border-[#cf222e55] text-[#cf222e] text-center py-1.5 text-[13px]" role="alert">Cannot reach the gateway. Start it with ./run.sh and this page will reconnect on its own.</div>}
       {page === "lab" ? <div className="flex-1 min-h-0"><AttackLab /></div> : (
         <main className="flex-1 min-h-0 grid grid-cols-[minmax(300px,2fr)_3fr]">
           <ChatPanel domain={domain} messages={messages} />

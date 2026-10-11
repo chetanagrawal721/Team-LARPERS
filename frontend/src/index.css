@@ -4,20 +4,20 @@
 
 html, body, #root { height: 100%; }
 body {
-  background: #0d1117; color: #e6edf3; margin: 0; font-size: 14px; line-height: 1.5;
+  background: #f6f8fa; color: #1f2328; margin: 0; font-size: 14px; line-height: 1.5;
   font-family: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
   font-feature-settings: "tnum" 1, "cv11" 1;
 }
-::selection { background: #1f6feb55; }
-:focus-visible { outline: 2px solid #58a6ff; outline-offset: 2px; }
+::selection { background: #0969da33; }
+:focus-visible { outline: 2px solid #0969da; outline-offset: 2px; }
 
 @layer components {
-  .panel { @apply bg-[#161b22] border border-[#30363d] rounded-md; }
-  .label { @apply text-[11px] uppercase tracking-wider text-[#8b949e]; }
-  .btn { @apply inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-[#30363d] bg-[#21262d] text-[13px] font-medium text-[#e6edf3] hover:bg-[#30363d] disabled:opacity-45 disabled:cursor-not-allowed; }
-  .btn-primary { @apply bg-[#1f6feb] border-[#1f6feb] text-white hover:bg-[#388bfd]; }
-  .btn-quiet { @apply bg-transparent border-transparent text-[#8b949e] hover:text-[#e6edf3] hover:bg-[#21262d]; }
-  .kbd { @apply px-1 rounded border border-[#30363d] text-[11px] text-[#8b949e]; }
+  .panel { @apply bg-white border border-[#d0d7de] rounded-md shadow-[0_1px_0_rgba(31,35,40,0.04)]; }
+  .label { @apply text-[11px] uppercase tracking-wider text-[#59636e]; }
+  .btn { @apply inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-[#d0d7de] bg-white text-[13px] font-medium text-[#1f2328] shadow-[0_1px_0_rgba(31,35,40,0.04)] hover:bg-[#f3f4f6] disabled:opacity-45 disabled:cursor-not-allowed; }
+  .btn-primary { @apply bg-[#0969da] border-[#0969da] text-white hover:bg-[#0757ba]; }
+  .btn-quiet { @apply bg-transparent border-transparent text-[#59636e] hover:text-[#1f2328] hover:bg-[#f3f4f6]; }
+  .kbd { @apply px-1 rounded border border-[#d0d7de] text-[11px] text-[#59636e]; }
 }
 
 .seal-crack { animation: crack 0.5s ease-out; }

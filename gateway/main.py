@@ -187,10 +187,10 @@ def current_domain():
 
 
 @app.get("/events")
-async def events(request: Request, last_event_id: str | None = Header(None)):
+async def events(request: Request, replay: int = 0, last_event_id: str | None = Header(None)):
     engine()
     start = int(last_event_id) if last_event_id and last_event_id.isdigit() else 0
-    return StreamingResponse(BUS.stream(last_id=start), media_type="text/event-stream",
+    return StreamingResponse(BUS.stream(replay=min(max(replay, 0), 200), last_id=start), media_type="text/event-stream",
                              headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 

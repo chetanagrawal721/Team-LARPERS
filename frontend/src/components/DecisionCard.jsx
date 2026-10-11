@@ -3,7 +3,7 @@ import ThreeStageStrip from "./ThreeStageStrip";
 import { STATUS_TEXT, USERS, call, getUser, headline, scopeSentence, setUser, tidy } from "../api";
 
 const TONE = {
-  ALLOW: ["#3fb950", "Allowed"], HOLD: ["#d29922", "Needs approval"], BLOCK: ["#f85149", "Blocked"], VOID: ["#f85149", "Voided"], DONE: ["#3fb950", "Done"],
+  ALLOW: ["#1a7f37", "Allowed"], HOLD: ["#9a6700", "Needs approval"], BLOCK: ["#cf222e", "Blocked"], VOID: ["#cf222e", "Voided"], DONE: ["#1a7f37", "Done"],
 };
 
 function Stepper({ d }) {
@@ -18,9 +18,9 @@ function Stepper({ d }) {
     <ol className="flex items-center gap-2 text-[12px]" aria-label="Progress">
       {steps.map((s, i) => (
         <li key={s.label} className="flex items-center gap-2">
-          <span className={`w-2 h-2 rounded-full ${s.bad ? "bg-[#f85149]" : s.on ? "bg-[#3fb950]" : s.now ? "bg-[#d29922]" : "bg-[#30363d]"}`} />
-          <span className={s.on || s.now ? "text-[#e6edf3]" : "text-[#8b949e]"}>{s.label}</span>
-          {i < steps.length - 1 && <span className="w-5 h-px bg-[#30363d]" />}
+          <span className={`w-2 h-2 rounded-full ${s.bad ? "bg-[#cf222e]" : s.on ? "bg-[#1a7f37]" : s.now ? "bg-[#9a6700]" : "bg-[#d0d7de]"}`} />
+          <span className={s.on || s.now ? "text-[#1f2328]" : "text-[#59636e]"}>{s.label}</span>
+          {i < steps.length - 1 && <span className="w-5 h-px bg-[#d0d7de]" />}
         </li>
       ))}
     </ol>
@@ -48,18 +48,18 @@ export default function DecisionCard({ d, onOpenDiff, onOpenShadow, onChanged, n
     <article className="space-y-3">
       <header>
         <h2 className="text-[17px] font-semibold leading-snug">{headline(d)}</h2>
-        <p className="text-[13px] text-[#8b949e] mt-0.5">
+        <p className="text-[13px] text-[#59636e] mt-0.5">
           {scopeSentence(d)} {d.agent_claim && <>The agent said: “{d.agent_claim}”.</>}
         </p>
       </header>
 
       <div className="panel flex items-center justify-between gap-4 px-4 py-2.5" style={{ borderLeft: `3px solid ${color}` }}>
         <div className="min-w-0">
-          <div className="font-semibold" style={{ color }}>{word} <span className="font-normal text-[#8b949e]">· rule {d.rule}{d.tier ? ` · tier ${d.tier}` : ""}</span></div>
-          <div className="text-[13px] text-[#c9d1d9]">{trimmed}</div>
+          <div className="font-semibold" style={{ color }}>{word} <span className="font-normal text-[#59636e]">· rule {d.rule}{d.tier ? ` · tier ${d.tier}` : ""}</span></div>
+          <div className="text-[13px] text-[#3d444d]">{trimmed}</div>
         </div>
-        <div className="text-[12px] text-[#8b949e] text-right shrink-0">
-          A request-level gate would have said<br /><b className={d.baseline_verdict === "ALLOW" && shown !== "ALLOW" ? "text-[#d29922]" : "text-[#c9d1d9]"}>{d.baseline_verdict}</b>
+        <div className="text-[12px] text-[#59636e] text-right shrink-0">
+          A request-level gate would have said<br /><b className={d.baseline_verdict === "ALLOW" && shown !== "ALLOW" ? "text-[#9a6700]" : "text-[#3d444d]"}>{d.baseline_verdict}</b>
         </div>
       </div>
 
@@ -85,16 +85,16 @@ export default function DecisionCard({ d, onOpenDiff, onOpenShadow, onChanged, n
         {d.shadow_session && <button className="btn" onClick={() => onOpenShadow(d.shadow_session)}>Review sandbox work</button>}
         <button className="btn btn-quiet" onClick={() => onOpenDiff(d)}>View changes</button>
         {(canApprove || sealed || d.safe_version) && (
-          <label className="ml-auto flex items-center gap-1.5 text-[12px] text-[#8b949e]">Acting as
-            <select className="bg-[#0d1117] border border-[#30363d] rounded px-1.5 py-1 text-[#e6edf3]" value={user} onChange={(e) => pickUser(e.target.value)}>
+          <label className="ml-auto flex items-center gap-1.5 text-[12px] text-[#59636e]">Acting as
+            <select className="bg-[#ffffff] border border-[#d0d7de] rounded px-1.5 py-1 text-[#1f2328]" value={user} onChange={(e) => pickUser(e.target.value)}>
               {USERS.map((u) => <option key={u.id} value={u.id}>{u.label}</option>)}
             </select>
           </label>
         )}
       </div>
 
-      <details className="text-[12px] text-[#8b949e]">
-        <summary className="cursor-pointer hover:text-[#c9d1d9]">Details</summary>
+      <details className="text-[12px] text-[#59636e]">
+        <summary className="cursor-pointer hover:text-[#3d444d]">Details</summary>
         <dl className="grid grid-cols-[110px_1fr] gap-y-1 mt-2">
           <dt>Decision</dt><dd className="font-mono">{d.id} · {STATUS_TEXT[d.status] || d.status}</dd>
           <dt>Rules fired</dt><dd>{d.rules_fired.join(", ") || "none"}</dd>

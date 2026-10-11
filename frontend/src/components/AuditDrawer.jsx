@@ -20,22 +20,22 @@ export default function AuditDrawer({ onClose }) {
       <div className="flex items-center gap-3 mb-4">
         <button className="btn btn-primary" onClick={doVerify}>Verify chain</button>
         <button className="btn" onClick={load}>Refresh</button>
-        {verify && (verify.ok ? <span className="text-[#56d364]">Chain intact</span> : <span className="text-[#ff7b72]">Chain broken at entry #{verify.first_broken_seq}</span>)}
+        {verify && (verify.ok ? <span className="text-[#1a7f37]">Chain intact</span> : <span className="text-[#cf222e]">Chain broken at entry #{verify.first_broken_seq}</span>)}
       </div>
       <table className="w-full text-sm">
-        <thead><tr className="text-left text-[#8b949e]"><th>#</th><th>time</th><th>who</th><th>what</th><th>decision</th><th>rule</th><th>path</th><th>hash</th><th></th></tr></thead>
+        <thead><tr className="text-left text-[#59636e]"><th>#</th><th>time</th><th>who</th><th>what</th><th>decision</th><th>rule</th><th>path</th><th>hash</th><th></th></tr></thead>
         <tbody>
           {rows.map((r) => (
-            <tr key={r.seq} className={`border-t border-[#30363d] ${broken != null && r.seq >= broken ? "bg-[#f8514922]" : ""}`}>
+            <tr key={r.seq} className={`border-t border-[#d0d7de] ${broken != null && r.seq >= broken ? "bg-[#cf222e22]" : ""}`}>
               <td className="py-1">{r.seq}</td>
               <td>{new Date(r.ts * 1000).toLocaleTimeString()}</td>
               <td>{r.agent}</td><td>{r.action}</td>
-              <td className={r.decision === "BLOCK" || r.decision === "VOID" ? "text-[#ff7b72]" : r.decision === "HOLD" ? "text-[#d29922]" : "text-[#56d364]"}>{r.decision}</td>
-              <td>{r.rule}</td><td className="text-[#8b949e]">{r.decision_path}</td>
-              <td className="font-mono text-xs text-[#8b949e]">{r.entry_hash.slice(0, 8)}</td>
+              <td className={r.decision === "BLOCK" || r.decision === "VOID" ? "text-[#cf222e]" : r.decision === "HOLD" ? "text-[#9a6700]" : "text-[#1a7f37]"}>{r.decision}</td>
+              <td>{r.rule}</td><td className="text-[#59636e]">{r.decision_path}</td>
+              <td className="font-mono text-xs text-[#59636e]">{r.entry_hash.slice(0, 8)}</td>
               <td>
                 <button className="btn" onClick={() => doReplay(r.seq)}>Replay</button>
-                {replays[r.seq] && <span className="ml-2 text-xs">{replays[r.seq].error ? <span className="text-[#ff7b72]">{replays[r.seq].error}</span> : replays[r.seq].reproduced === true ? <span className="text-[#56d364]">Reproduced</span> : replays[r.seq].reproduced === false ? <span className="text-[#ff7b72]">MISMATCH</span> : <span className="text-[#8b949e]">n/a</span>}</span>}
+                {replays[r.seq] && <span className="ml-2 text-xs">{replays[r.seq].error ? <span className="text-[#cf222e]">{replays[r.seq].error}</span> : replays[r.seq].reproduced === true ? <span className="text-[#1a7f37]">Reproduced</span> : replays[r.seq].reproduced === false ? <span className="text-[#cf222e]">MISMATCH</span> : <span className="text-[#59636e]">n/a</span>}</span>}
               </td>
             </tr>
           ))}

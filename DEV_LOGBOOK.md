@@ -378,3 +378,13 @@
 **Last-moment changes:** no
 **Suggested commit message:** UI: calmer console with plain-language headline, approval progress and no emoji
 **Known issues:** The overlays (changes, sandbox review, audit) have received colour and wording changes only and still deserve a full layout pass.
+
+### [UI] Light professional theme — 2026-10-11 16:40 IST — Owner: Kanak-Agrawal-3008
+**What has changed:** All colours in `frontend/src` have been moved from a dark palette to a light one (white panels on a pale grey page, dark grey text, a single blue accent, restrained green, amber and red for status), `index.css` component classes, and the seal colours. `gateway/main.py` no longer replays recent events when the live stream connects.
+**Why:** The team has wanted a conventional, professional appearance that reads well on a projector and in print, and the replayed history has shown unrelated messages from earlier sessions in the conversation panel.
+**How:** Colour values have been replaced one-for-one so that contrast is kept (status colours use the darker GitHub-style tones on white). Panels and buttons carry a one-pixel border and a very light shadow. The event stream now replays nothing by default; a `replay` query parameter remains for debugging.
+**Tests:** Production build succeeds; the Live gate screen has been checked in the browser pane; backend tests unchanged.
+**Deviations from plan:** none
+**Last-moment changes:** no
+**Suggested commit message:** UI: light professional theme; stop replaying old events on connect
+**Known issues:** The overlays have been re-coloured but not re-laid-out.

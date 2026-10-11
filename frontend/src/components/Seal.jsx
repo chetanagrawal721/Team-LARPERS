@@ -1,6 +1,6 @@
 // Seal mark: intact (blue), cracked (red, animated) or not yet issued (grey, dashed).
 export default function Seal({ state = "none", size = 40 }) {
-  const color = state === "intact" ? "#58a6ff" : state === "cracked" ? "#f85149" : "#6e7681";
+  const color = state === "intact" ? "#0969da" : state === "cracked" ? "#cf222e" : "#6e7781";
   return (
     <svg width={size} height={size} viewBox="0 0 48 48" role="img" aria-label={`Seal ${state === "none" ? "not issued" : state}`}
          className={state === "cracked" ? "seal-crack" : ""}>
