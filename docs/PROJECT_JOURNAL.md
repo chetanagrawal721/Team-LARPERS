@@ -222,9 +222,9 @@ Additions to the suite after pre-registration must be logged in §11 with the re
 - [ ] **Phase 4 checkpoint**
 
 ### Phase 5 — AI layer
-- [ ] 5.1 AI client, validation, fallback — atharvg44
-- [ ] 5.2 Envelope from instruction, claim-vs-effect — atharvg44
-- [ ] 5.3 Paraphrase sentry, explanations — atharvg44
+- [x] 5.1 AI client, validation, fallback — atharvg44
+- [x] 5.2 Envelope from instruction, claim-vs-effect — atharvg44
+- [x] 5.3 Paraphrase sentry, explanations — atharvg44
 - [ ] **Phase 5 checkpoint**
 
 ### Phase 6 — Signature features
@@ -301,6 +301,9 @@ One line per milestone push, decision, or notable event. Newest at the bottom.
 | 2026-10-11 14:10 | aryanketkar-15 | Milestone | M4.1 — approvals with separation of duties and tiered approvers have been implemented. | |
 | 2026-10-11 14:10 | aryanketkar-15 | Milestone | M4.2 — the effect-bound seal with typed drift detection has been implemented. | |
 | 2026-10-11 14:10 | aryanketkar-15 | Milestone | M4.3 — one-transaction sealed execution and the transactional outbox have been implemented. | |
+| 2026-10-11 14:13 | atharvg44 | Milestone | M5.1 — the escalate-only AI client with schema validation and fallback has been implemented. | |
+| 2026-10-11 14:13 | atharvg44 | Milestone | M5.2 — the clamped AI envelope and claim-vs-effect escalation have been implemented. | |
+| 2026-10-11 14:13 | atharvg44 | Milestone | M5.3 — the best-effort paraphrase sentry and approver explanations have been implemented. | |
 
 **Entry types:** Decision · Design · Review · Milestone · Fix · Change · Test · Result · Docs
 

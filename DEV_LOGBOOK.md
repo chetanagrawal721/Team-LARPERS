@@ -25,9 +25,9 @@
 | 4.1 | Approvals and separation of duties | aryanketkar-15 | ☑ |
 | 4.2 | Effect seal with typed drift | aryanketkar-15 | ☑ |
 | 4.3 | One-transaction execution and outbox | aryanketkar-15 | ☑ |
-| 5.1 | AI client, validation, fallback | atharvg44 | ☐ |
-| 5.2 | Envelope from instruction, claim-vs-effect | atharvg44 | ☐ |
-| 5.3 | Paraphrase sentry, explanations | atharvg44 | ☐ |
+| 5.1 | AI client, validation, fallback | atharvg44 | ☑ |
+| 5.2 | Envelope from instruction, claim-vs-effect | atharvg44 | ☑ |
+| 5.3 | Paraphrase sentry, explanations | atharvg44 | ☑ |
 | 6.1 | Smallest safe version | chetanagrawal721 | ☐ |
 | 6.2 | Shadow Mode | chetanagrawal721 | ☐ |
 | 6.3 | Replay and honeytoken freeze | aryanketkar-15 | ☐ |
@@ -218,3 +218,33 @@
 **Last-moment changes:** no
 **Suggested commit message:** M4.3: one-transaction sealed execution and transactional outbox
 **Known issues:** none
+
+### [5.1] AI client, schema validation and fallback — 2026-10-11 14:13 IST — Owner: atharvg44
+**What has changed:** `gateway/ai.py`, `gateway/main.py` (`/ai/toggle`, `/ai/status`), `.env.example` (AI settings), tests in `tests/test_ai.py`.
+**Why:** R4/R9/R10: the AI has had to be able to inform decisions without ever deciding alone, and the system has had to stay safe when the AI is off, slow or wrong.
+**How:** One module calls an optional provider behind a 3-second timeout and validates the answer against a strict Pydantic schema whose escalation field can only be NONE, HOLD or BLOCK. Any timeout, transport error or invalid output yields no result, and the decision path is recorded as `fallback`. Providers are selected by environment variable (none, Ollama, Gemini, OpenRouter); the API key is read only from `.env` and sent in a header. Tests inject an `httpx.MockTransport`, so no model is needed.
+**Tests:** T5.1-1..9 covered by `tests/test_ai.py` (all passed).
+**Deviations from plan:** Gemini and OpenRouter providers have been added alongside Ollama, because the team has API keys available at the venue; this uses only `httpx`, which the playbook already lists.
+**Last-moment changes:** no
+**Suggested commit message:** M5.1: escalate-only AI client with schema validation and fallback (R4, R9, R10)
+**Known issues:** none
+
+### [5.2] Envelope from instruction and claim-vs-effect check — 2026-10-11 14:13 IST — Owner: atharvg44
+**What has changed:** `gateway/ai_layer.py`, `gateway/prompts/envelope.txt`, `gateway/prompts/claim.txt`, `gateway/engine.py` (wiring), tests in `tests/test_ai.py`.
+**Why:** The envelope has needed to come from the user's own words, so that 'more than asked' is a checkable property, and agent claims have needed to be compared with the measured effect.
+**How:** The model extracts scope, row and amount limits from the instruction; they are clamped with `min(ai_limit, policy_limit)` so the AI can never widen what the policy allows, and vague instructions fall back to the strict policy default with a flag. Prompts are stored as files, and the user text is delimited as data. When the AI is unavailable the tier of an unverifiable intent claim is raised by one level.
+**Tests:** T5.2-1..8 covered by `tests/test_ai.py` (all passed).
+**Deviations from plan:** none
+**Last-moment changes:** no
+**Suggested commit message:** M5.2: AI envelope from user instruction (clamped) and claim-vs-effect escalation
+**Known issues:** none
+
+### [5.3] Paraphrase sentry and explanations — 2026-10-11 14:13 IST — Owner: atharvg44
+**What has changed:** `gateway/ai_layer.py`, `gateway/prompts/sentry.txt`, `gateway/engine.py` (per-agent record of sensitive data accessed), tests in `tests/test_ai.py`.
+**Why:** Personal data rewritten into prose cannot be seen by labels, so a best-effort escalation has been added, and approvers have needed one plain sentence per decision.
+**How:** The sentry can only HOLD, never BLOCK. When it is unavailable, a deterministic fallback holds any external free-text send by an agent that has accessed PII or SECRET data in this task. Explanations are written by the model when available and otherwise come from a template per rule ID.
+**Tests:** T5.3-1..5 covered by `tests/test_ai.py`; full suite 145 passed.
+**Deviations from plan:** none
+**Last-moment changes:** no
+**Suggested commit message:** M5.3: best-effort paraphrase sentry and approver explanations
+**Known issues:** The sentry is best-effort by design and is listed as a known limitation.
