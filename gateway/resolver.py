@@ -102,6 +102,10 @@ def measure(resolver: Resolver, conn: sqlite3.Connection, args: dict, ctx: Ctx) 
                 src = after[t].get(pk) or before[t].get(pk) or {}
                 meta[t][pk] = {"op": ops, **{c: src.get(c) for c in cols}}
         pre[t] = {pk: before[t].get(pk) for pk in rows[t]}
+    for t, items in (extras.get("virtual_rows") or {}).items():
+        if items:
+            rows[t] = sorted(items)
+            meta[t] = {pk: {"op": "disclosed", **m} for pk, m in items.items()}
     policy = ctx.policy
     lbls, path = labels_mod.label_effect(policy, rows, extras)
     dests = sorted(set(extras.get("destinations", [])))

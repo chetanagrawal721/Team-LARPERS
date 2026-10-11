@@ -66,6 +66,12 @@ def check(effect: Effect, env: Envelope, policy: Policy) -> EnvelopeCheck:
         if outside:
             bad_recipients = sorted(effect.recipients)
             reasons.append("destination(s) " + ", ".join(outside) + " not expected for this request")
+    declared = effect.row_meta.get("recipients", {})
+    stray = sorted(a for a, m in declared.items() if m.get("declared") and m.get("dest") != m["declared"])
+    if stray:
+        bad_recipients = sorted(set(bad_recipients) | set(stray))
+        offending["recipients"] = stray
+        reasons.append(f"{len(stray)} recipients are outside the list's declared audience")
     return EnvelopeCheck(inside=not reasons, offending_rows={t: sorted(v) for t, v in offending.items()},
                          offending_recipients=bad_recipients, over_amount=over_amount, over_rows=over_rows,
                          reasons=reasons)

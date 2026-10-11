@@ -1,0 +1,38 @@
+org: Pune Care Hospital
+domain: hospital
+db: hospital.db
+currency: INR
+internal_domains: [punecare.example]
+agents:
+  records-agent: {actions: [lookup, send_report, delete_record], acts_for: records_officer, default_user: priya}
+roles:
+  records_staff:      [lookup, send_report]
+  records_officer:    [lookup, send_report, delete_record]
+  compliance_officer: [lookup]
+actions:
+  lookup:        {reversible: snapshot, primary_table: patients}
+  send_report:   {reversible: none,     primary_table: disclosed}
+  delete_record: {reversible: none}
+labels:
+  patients.*: PII
+  reports.*: PII
+  appointments.*: INTERNAL
+  doctors.*: INTERNAL
+  mail_body.*: PUBLIC
+destinations:
+  internal_email: PII
+  external_email: PUBLIC
+  shared_drive: INTERNAL
+envelopes:
+  send_report:   {max_rows: 1, destinations: [internal_email]}
+  delete_record: {max_rows: 1}
+  lookup:        {max_rows: 0}
+tiers:
+  two_approvers_above_amount: 200000
+  approval_ttl_seconds: 900
+tier_overrides:
+  - {action: send_report, destinations_only: [internal_email], tier: T1}
+protected: [grant_role, audit_config]
+budgets: {}
+shadow_mode: {on_hold: true}
+honeytokens: [export_all_credentials]
