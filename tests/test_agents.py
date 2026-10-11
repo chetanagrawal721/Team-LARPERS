@@ -155,3 +155,13 @@ def test_cli_honours_text_when_scenario_given(monkeypatch):
     monkeypatch.setattr("agents.scenarios.run", lambda name, ctx=None, text=None: seen.update(name=name, text=text))
     run_main(["bank-refund", "--text", "Refund C-2210's duplicate March charges"])
     assert seen == {"name": "bank-refund", "text": "Refund C-2210's duplicate March charges"}
+
+
+def test_typed_request_missing_a_detail_asks_instead_of_guessing(client):
+    client.post("/domain/hospital")
+    out = scenarios.run("hospital-report", Context(client=client, wait_seconds=0),
+                        text="Share Aryan's report with Dr. Jhatka who is from AIIMS Delhi")
+    assert out is None
+    assert any("could not tell which patient" in t for t in chats())
+    assert client.get("/actions").json() == []          # nothing was proposed
+    client.post("/domain/bank")

@@ -21,6 +21,14 @@ def rupees(minor: int) -> str:
     return f"Rs {minor // 100:,}"
 
 
+def missing(ctx, a: Agent, what: str, example: str) -> bool:
+    """For typed requests, ask instead of guessing when a required detail is absent."""
+    if ctx.typed:
+        a.say(f"I could not tell {what}. Please include it, for example: {example}", "gate")
+        return True
+    return False
+
+
 def report(a: Agent, d: dict, ok_text: str) -> dict:
     """Turn a gateway decision into a chat reply the way the demo script expects."""
     eff = d.get("effect") or {}
@@ -48,6 +56,8 @@ def report(a: Agent, d: dict, ok_text: str) -> dict:
 def bank_update_phone(ctx, text="Update Meera's phone number"):
     a = ctx.agent("ops-agent")
     a.say(text, "user")
+    if "customer" not in ctx.params and missing(ctx, a, "which customer to update", "Update C-0007's phone number to +91-9811122233"):
+        return None
     cust, phone = ctx.params.get("customer", "C-0007"), ctx.params.get("phone", "+91-9822000007")
     a.say(f"Understood: set the phone number of {cust} to {phone}.")
     d = a.propose("update_contact", {"customer": cust, "phone": phone},
@@ -59,6 +69,8 @@ def bank_update_phone(ctx, text="Update Meera's phone number"):
 def bank_refund(ctx, text="Refund C-1042's duplicate March charges"):
     a = ctx.agent("refund-agent")
     a.say(text, "user")
+    if "customer" not in ctx.params and missing(ctx, a, "which customer to refund", "Refund C-1042's duplicate March charges"):
+        return None
     cust, month = ctx.params.get("customer", "C-1042"), ctx.params.get("month", "March")
     a.say(f"Understood: refund the duplicate {month} charges of {cust}. Processing refunds…")
     d = a.propose("refund", {"customer": cust, "month": month, "match": "batch"},
@@ -77,6 +89,8 @@ def bank_refund(ctx, text="Refund C-1042's duplicate March charges"):
 def bank_payee(ctx, text="Process the new vendor details from the email"):
     a = ctx.agent("ops-agent")
     a.say(text, "user")
+    if "vendor" not in ctx.params and missing(ctx, a, "which vendor to change", "Change the bank account of vendor V-17 from the email"):
+        return None
     vendor = ctx.params.get("vendor", "V-17")
     a.say(f"Understood: update the bank details of {vendor} from the inbound email. Reading it…")
     d = a.propose("payee_change", {"vendor": vendor, "new_account": "ICICI-0009083", "source": "inbox:E-9001"},
@@ -106,6 +120,10 @@ def bank_batch(ctx, text="Pay the 40 pending vendor invoices"):
 def hospital_report(ctx, text="Share Ramesh's report with Dr. Shah"):
     a = ctx.agent("records-agent")
     a.say(text, "user")
+    if "patient" not in ctx.params and missing(ctx, a, "which patient's report to send", "Share P-0001's report with dr.shah@punecare.example"):
+        return None
+    if "email" not in ctx.params and missing(ctx, a, "who should receive the report", "Share P-0001's report with dr.shah@punecare.example"):
+        return None
     patient, to = ctx.params.get("patient", "P-0001"), ctx.params.get("email", "dr.shah@punecare.example")
     a.say(f"Understood: send the report of {patient} to {to}.")
     d = a.propose("send_report", {"patient": patient, "to": to, "attachment": "batch_all"},
@@ -186,6 +204,7 @@ class Context:
         self.client = client
         self.wait_seconds = wait_seconds
         self.params = params or {}
+        self.typed = False          # True when the request came from free text rather than a stored scenario
 
     def agent(self, name: str) -> Agent:
         return Agent(name, client=self.client, wait_seconds=self.wait_seconds)
@@ -196,5 +215,6 @@ def run(name: str, ctx: Context | None = None, text: str | None = None):
         raise KeyError(f"unknown scenario {name!r}")
     ctx = ctx or Context()
     if text:
+        ctx.typed = True
         ctx.params = {**parse(text), **ctx.params}
     return SCENARIOS[name](ctx, text) if text else SCENARIOS[name](ctx)
