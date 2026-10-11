@@ -38,8 +38,8 @@
 | 8.3 | Diff, Shadow, Audit overlays | Kanak-Agrawal-3008 | ☑ |
 | 8.4 | Attack Lab page, AI toggle | Kanak-Agrawal-3008 | ☑ |
 | 9.1 | Attack Lab runner | atharvg44 | ☑ |
-| 9.2 | End-to-end integration | all | ☐ |
-| 9.3 | Rehearsal and release | all | ☐ |
+| 9.2 | End-to-end integration | all | ☑ |
+| 9.3 | Rehearsal and release | all | ☐ (docs done; rehearsal pending) |
 
 ## Entry template
 
@@ -348,3 +348,23 @@
 **Last-moment changes:** no
 **Suggested commit message:** M8.4: Attack Lab page with live ablation results and AI toggle
 **Known issues:** none
+
+### [9.2] End-to-end integration and regression — 2026-10-11 14:40 IST — Owner: atharvg44
+**What has changed:** `tests/test_e2e.py`, `gateway/reset.py`, `POST /demo/reset`, `Engine.close()`, `gateway/main.py` (lifespan handler replaces the deprecated startup hook; route order), `run.sh`, `reset_demo.sh`.
+**Why:** The whole system has had to be green together and the ten demonstration beats have had to run start to finish.
+**How:** The ten beats have been driven through the real API with the scripted agents (update, blocked refund, safe version, shadow and discard, sealed transfer broken by inserted data, hospital and shop blocks, AI off, audit tamper, restart). The gateway has also been restarted mid-run against the same data directory. Older gateway state files are now upgraded in place, which a stale file from an early build exposed.
+**Tests:** T9.2-1,4,5,6 covered: `pytest -q` reports 210 passed on the build laptop and 210 passed on a fresh clone of the repository with a new virtual environment. T9.2-2 (fresh clone) passed for the test suite; the frontend build of a fresh clone and T9.2-3 (Wi-Fi off, Ollama stopped) remain for the rehearsal; the suite itself needs no network because AI is mocked and defaults to off.
+**Deviations from plan:** none
+**Last-moment changes:** no
+**Suggested commit message:** M9.2: end-to-end integration fixes and regression green
+**Known issues:** none
+
+### [9.3] Rehearsal and release (documentation part) — 2026-10-11 14:40 IST — Owner: aryanketkar-15
+**What has changed:** `README.md` (setup, run, demo script, limits), `reset_demo.sh`, `docs/PROJECT_JOURNAL.md` (results, misses, performance).
+**Why:** The final documentation and a one-command reset have been needed before the timed dry runs.
+**How:** The README restates the demo script against the real buttons of the interface, the optional AI configuration and the known limits. The journal results table has been filled exactly as produced, including the A10 miss.
+**Tests:** T9.3-4 (reset script) is covered by `test_demo_reset_restores_initial_state`. T9.3-1..3 (three timed dry runs, one offline, with questions) and T9.3-5 (projector) have not been done and remain for the four members.
+**Deviations from plan:** Milestone 9.3 is not complete until the dry runs have been performed by the team, so it has not been ticked.
+**Last-moment changes:** no
+**Suggested commit message:** M9.3: release documentation, demo reset script and final journal
+**Known issues:** Dry runs, projector check, `v1.0-vortexa` tag and the final release checklist remain for the humans.

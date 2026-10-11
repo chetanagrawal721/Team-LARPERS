@@ -176,16 +176,18 @@ Additions to the suite after pre-registration must be logged in §11 with the re
 
 | Mode | Attacks stopped | Benign allowed | Notes |
 |---|---|---|---|
-| A | __ / 22 | __ / 22 | |
-| B | __ / 22 | __ / 22 | |
-| C (AI on) | __ / 22 | __ / 22 | |
-| C (AI off) | __ / 22 | __ / 22 | |
+| A | 4 / 23 | 23 / 23 | allowlist + default deny + signatures; A18 (structural) and A19-A21 are the stopped cases |
+| B | 8 / 23 | 23 / 23 | adds protected-action approval and argument-bound approvals |
+| C (AI on) | not measured | not measured | no AI provider was configured when the suite was run; the AI path is covered by mocked tests |
+| C (AI off) | 22 / 23 | 23 / 23 | all pre-registered expectations met except A10 |
+
+Run of 2026-10-11 on the build laptop (`python -m lab.runner`, 14.5 s). "Attack stopped" means BLOCK, HOLD, VOID, REFUSED or (for A18) a structural guarantee; "benign allowed" means not BLOCK, VOID or REFUSED. The 23 pairs are the 22 pre-registered pairs plus case A23, which was added after registration (see section 11).
 
 **Known misses:**
--
--
+- A10 (budget split across three agents, 90 refunds of Rs 1,000): the gateway allowed it because Rs 90,000 stays inside both the per-agent (Rs 50,000 each) and the shared (Rs 1,00,000) limits. The pre-registered volume was below the limit; the case has been kept and reported, and A23 (120 refunds) has been added, which mode C holds.
+- Structural limits that the suite cannot exercise: data moved through channels the gateway never sees, and personal data paraphrased into free text (best-effort only).
 
-**Performance observations:** decision latency ____ ms (median, excluding AI); AI latency ____ ms; fallback rate ____ %.
+**Performance observations:** decision latency has been measured at a median of 47 ms (maximum 65 ms) for the 212-row refund, including the sandbox copy, measurement, rules and logging, and 54 ms for a one-row update including execution (excluding AI). AI latency has not been measured. The fallback rate has been 100% in the suite run because no AI provider was configured.
 
 ---
 
@@ -247,7 +249,7 @@ Additions to the suite after pre-registration must be logged in §11 with the re
 
 ### Phase 9 — Evaluation & release
 - [x] 9.1 Attack Lab runner — atharvg44
-- [ ] 9.2 End-to-end integration — all
+- [x] 9.2 End-to-end integration — all
 - [ ] 9.3 Rehearsal and release (`v1.0-vortexa`) — all
 - [ ] **Final Release Checklist complete**
 
@@ -315,6 +317,8 @@ One line per milestone push, decision, or notable event. Newest at the bottom.
 | 2026-10-11 14:35 | Kanak-Agrawal-3008 | Milestone | M8.2 — the three-stage strip, seal states, verdict row and popups have been implemented. | |
 | 2026-10-11 14:35 | Kanak-Agrawal-3008 | Milestone | M8.3 — the diff, Shadow Mode and audit overlays have been implemented. | |
 | 2026-10-11 14:35 | Kanak-Agrawal-3008 | Milestone | M8.4 — the Attack Lab page with live ablation results and the AI toggle have been implemented. | |
+| 2026-10-11 14:40 | atharvg44 | Milestone | M9.2 — end-to-end integration has been verified (210 tests passing locally and on a fresh clone). | |
+| 2026-10-11 14:40 | aryanketkar-15 | Milestone | M9.3 — the release README, reset script and journal results have been written; rehearsal is pending. | |
 
 **Entry types:** Decision · Design · Review · Milestone · Fix · Change · Test · Result · Docs
 
