@@ -5,7 +5,7 @@ import pathlib
 import threading
 import uuid
 
-from . import audit, budgets, clock, config, envelope as envelope_mod, execute as execute_mod, registry, resolver, resolvers, seal, verify
+from . import ai_layer, audit, budgets, clock, config, envelope as envelope_mod, execute as execute_mod, registry, resolver, resolvers, seal, verify
 from .db import init_state
 from .decide import baseline_verdict, decide
 from .policy_loader import Policy, load as load_policy
@@ -131,12 +131,43 @@ class Engine:
                 return self.refuse(p_raw, p.agent, p.action, "R01", why)
             return self._analyse(p, p_raw)
 
-    def ai_advice(self, p: Proposal, effect, env) -> dict:
-        """Escalate-only advisor. Replaced by the AI layer in Phase 5; until then the fallback path is used."""
-        return {"escalation": "NONE", "status": "off", "reason": ""}
+    def touched_labels(self, agent: str) -> set:
+        return {r["label"] for r in self.state.execute("SELECT label FROM agent_touched WHERE agent=?", (agent,))}
 
-    def build_envelope(self, p: Proposal) -> Envelope:
-        return envelope_mod.default_for(self.policy, p.action, p.args)
+    def record_touched(self, agent: str, labels) -> None:
+        for lbl in labels:
+            if lbl in ("PII", "SECRET"):
+                self.state.execute("INSERT OR IGNORE INTO agent_touched (agent, label, ts) VALUES (?,?,?)",
+                                   (agent, lbl, int(clock.now())))
+
+    def ai_advice(self, p: Proposal, effect, env_info: dict) -> dict:
+        """Escalate-only advisor: claim-vs-effect and paraphrase sentry, each with a deterministic fallback."""
+        order = {"NONE": 0, "HOLD": 1, "BLOCK": 2}
+        statuses = [env_info.get("status", "off")]
+        state = {"esc": "NONE", "reasons": []}
+        if env_info.get("flag"):
+            state["reasons"].append(env_info["flag"])
+
+        def raise_to(level, why):
+            if order[level] > order[state["esc"]]:
+                state["esc"] = level
+            if why:
+                state["reasons"].append(why)
+        rows = {t: len(v) for t, v in effect.rows.items()}
+        summary = f"rows={rows} amount_minor={effect.amount_minor} recipients={len(effect.recipients)} "                   f"destinations={effect.destinations}"
+        claim = ai_layer.claim_vs_effect(p.intent, summary)
+        statuses.append(claim["status"])
+        raise_to(claim["escalation"], claim["reason"])
+        body = p.args.get("body") if p.action in ("send_email", "send_report") else None
+        if body and "external_email" in effect.destinations:
+            sentry = ai_layer.paraphrase_sentry(str(body))
+            statuses.append(sentry["status"])
+            if sentry["status"] == "ok":
+                raise_to(sentry["escalation"], sentry["reason"])
+            elif self.touched_labels(p.agent):
+                raise_to("HOLD", "fallback rule: external free text sent by an agent that accessed personal data")
+        status = "ok" if "ok" in statuses else next((s for s in statuses if s not in ("n/a", "off")), "off")
+        return {"escalation": state["esc"], "status": status, "reason": "; ".join(r for r in state["reasons"] if r)}
 
     def reanalyse(self, rec: dict, parent_id: str) -> Decision:
         """Evaluate a stored proposal afresh (after a void). The result never auto-executes."""
@@ -181,14 +212,14 @@ class Engine:
         except ResolverError as e:
             return self.refuse(p_raw, p.agent, p.action, "R99", f"invalid request: {e}")
         effect = measured.effect
-        env = self.build_envelope(p)
+        env, env_info = ai_layer.build_envelope(pol, p.action, p.args, p.user_instruction)
         chk = envelope_mod.check(effect, env, pol)
         conn = self.real_conn()
         try:
             bud = budgets.check(conn, pol, p.agent, p.action, effect.amount_minor)
         finally:
             conn.close()
-        ai = self.ai_advice(p, effect, env)
+        ai = self.ai_advice(p, effect, env_info)
         inp.update(effect=effect.model_dump(), envelope=env.model_dump(), check=chk.model_dump(),
                    budget_exceeded=bud["exceeded"], budget=bud["snapshot"], ai=ai,
                    intent_unverified=bool(p.intent) and ai.get("status") != "ok")
@@ -204,13 +235,16 @@ class Engine:
         base = baseline_verdict(inp, pol)
         effect = measured.effect if measured else None
         status = {"ALLOW": "allowed", "HOLD": "pending", "BLOCK": "blocked"}[out["verdict"]]
+        ai_reason = (inp.get("ai") or {}).get("reason", "")
+        if out["verdict"] != "ALLOW" and not ai_reason:
+            ai_reason, _src = ai_layer.explain(out["rule"], out["reason"], "")
         d = Decision(
             id=did or self.new_id(), verdict=out["verdict"], rule=out["rule"], reason=out["reason"],
             baseline_verdict=base, decision_path=out["decision_path"], effect=effect,
             envelope=Envelope(**inp["envelope"]) if inp.get("envelope") else None,
             envelope_check=EnvelopeCheck(**inp["check"]) if inp.get("check") else None,
             status=status, tier=out["tier"], approvals_needed=out["approvals_needed"],
-            rules_fired=out["rules_fired"], ai_reason=(inp.get("ai") or {}).get("reason", ""),
+            rules_fired=out["rules_fired"], ai_reason=ai_reason,
             agent=p.agent, action=p.action, agent_claim=p.intent, policy_hash=pol.hash,
             created_ts=int(clock.now()))
         meta = {"human": human, "state_ver": measured.state_ver if measured else "",
@@ -221,6 +255,8 @@ class Engine:
                    "meta": meta}
         audit.append(self.state, d.created_ts, p.agent, p.action, payload, d.verdict, d.rule, d.decision_path,
                      pol.hash)
+        if effect is not None:
+            self.record_touched(p.agent, effect.labels)
         self.save_decision(d, p_raw, requester=human, meta=meta, parent_id=parent_id)
         self.emit("decision", d.id, verdict=d.verdict, rule=d.rule, reason=d.reason, agent=p.agent,
                   action=p.action, tier=d.tier)
