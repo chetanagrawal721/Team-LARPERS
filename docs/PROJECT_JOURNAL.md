@@ -239,10 +239,10 @@ Additions to the suite after pre-registration must be logged in §11 with the re
 - [ ] **Phase 7 checkpoint**
 
 ### Phase 8 — Frontend
-- [ ] 8.1 Layout, chat, live events — Kanak-Agrawal-3008
-- [ ] 8.2 Three-stage strip, verdict, popups — Kanak-Agrawal-3008
-- [ ] 8.3 Diff, Shadow, Audit overlays — Kanak-Agrawal-3008
-- [ ] 8.4 Attack Lab page, AI toggle — Kanak-Agrawal-3008
+- [x] 8.1 Layout, chat, live events — Kanak-Agrawal-3008
+- [x] 8.2 Three-stage strip, verdict, popups — Kanak-Agrawal-3008
+- [x] 8.3 Diff, Shadow, Audit overlays — Kanak-Agrawal-3008
+- [x] 8.4 Attack Lab page, AI toggle — Kanak-Agrawal-3008
 - [ ] **Phase 8 checkpoint**
 
 ### Phase 9 — Evaluation & release
@@ -311,6 +311,10 @@ One line per milestone push, decision, or notable event. Newest at the bottom.
 | 2026-10-11 14:22 | atharvg44 | Milestone | M7.1 — signed agent tools, scripted scenarios and the event stream have been implemented. | |
 | 2026-10-11 14:22 | chetanagrawal721 | Milestone | M7.2 — the hospital and e-commerce domains have been implemented through policy files and resolvers. | |
 | 2026-10-11 14:28 | atharvg44 | Milestone | M9.1 — the paired attack-suite runner with ablation modes A, B and C has been implemented (A 4/22, B 8/22, C 21/22 attacks stopped; all benign twins allowed). | |
+| 2026-10-11 14:35 | Kanak-Agrawal-3008 | Milestone | M8.1 — the split-screen layout, chat panel and live event stream have been implemented. | |
+| 2026-10-11 14:35 | Kanak-Agrawal-3008 | Milestone | M8.2 — the three-stage strip, seal states, verdict row and popups have been implemented. | |
+| 2026-10-11 14:35 | Kanak-Agrawal-3008 | Milestone | M8.3 — the diff, Shadow Mode and audit overlays have been implemented. | |
+| 2026-10-11 14:35 | Kanak-Agrawal-3008 | Milestone | M8.4 — the Attack Lab page with live ablation results and the AI toggle have been implemented. | |
 
 **Entry types:** Decision · Design · Review · Milestone · Fix · Change · Test · Result · Docs
 

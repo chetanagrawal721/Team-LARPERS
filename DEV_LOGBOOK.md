@@ -33,10 +33,10 @@
 | 6.3 | Replay and honeytoken freeze | aryanketkar-15 | ☑ |
 | 7.1 | Agents, tools, scenarios | atharvg44 | ☑ |
 | 7.2 | Hospital and e-commerce domains | chetanagrawal721 | ☑ |
-| 8.1 | Layout, chat, live events | Kanak-Agrawal-3008 | ☐ |
-| 8.2 | Three-stage strip, verdict, popups | Kanak-Agrawal-3008 | ☐ |
-| 8.3 | Diff, Shadow, Audit overlays | Kanak-Agrawal-3008 | ☐ |
-| 8.4 | Attack Lab page, AI toggle | Kanak-Agrawal-3008 | ☐ |
+| 8.1 | Layout, chat, live events | Kanak-Agrawal-3008 | ☑ |
+| 8.2 | Three-stage strip, verdict, popups | Kanak-Agrawal-3008 | ☑ |
+| 8.3 | Diff, Shadow, Audit overlays | Kanak-Agrawal-3008 | ☑ |
+| 8.4 | Attack Lab page, AI toggle | Kanak-Agrawal-3008 | ☑ |
 | 9.1 | Attack Lab runner | atharvg44 | ☑ |
 | 9.2 | End-to-end integration | all | ☐ |
 | 9.3 | Rehearsal and release | all | ☐ |
@@ -308,3 +308,43 @@
 **Last-moment changes:** yes (journal section 11)
 **Suggested commit message:** M9.1: paired attack-suite runner with ablation modes A/B/C
 **Known issues:** A10 reported as a miss (suite volume was below the budget limit).
+
+### [8.1] Layout, chat panel and live events — 2026-10-11 14:35 IST — Owner: Kanak-Agrawal-3008
+**What has changed:** `frontend/src/App.jsx`, `api.js`, `hooks/useEvents.js`, `components/TopBar.jsx`, `ChatPanel.jsx`, `Console.jsx`, `Toast.jsx`, `index.css`.
+**Why:** Judges have needed to see cause and protection side by side: the user-to-agent chat on the left and the moderator console on the right, updated live.
+**How:** A single-page split screen with a dark theme, one cyan accent and a per-domain tint on the switcher. Server-Sent Events are used (not WebSockets) because data flows one way; the hook reconnects automatically and the page shows an offline banner. A demo-only user selector sends `X-User` and a token read from an untracked `frontend/.env.local`.
+**Tests:** Verified manually in the browser pane against the real gateway: two panels render, chat lines and decisions arrive live, the domain switcher works and the offline banner appears while the gateway is unreachable (T8.1-1,2,4,6). Reconnect after a gateway restart was observed. T8.1-5 (legibility at 50% zoom) is left for the projector rehearsal.
+**Deviations from plan:** none
+**Last-moment changes:** no
+**Suggested commit message:** M8.1: split-screen layout, chat panel and SSE live events
+**Known issues:** none
+
+### [8.2] Console: three-stage strip, verdict and popups — 2026-10-11 14:35 IST — Owner: Kanak-Agrawal-3008
+**What has changed:** `frontend/src/components/ThreeStageStrip.jsx`, `Seal.jsx`, `DecisionCard.jsx`.
+**Why:** The central idea has had to be visible at a glance: what was expected, what the sandbox measured, what really happened, and whether the seal held.
+**How:** One component renders every decision. The sandbox bar overshoots the dotted envelope in red when the action does more than asked; the seal icon is intact, absent or cracked (animated) and a drift shows as 'SEAL BROKEN, effect drift (40 to 4000)'. The row below always shows the normal-gate verdict beside the SEALGATE verdict. Buttons call approve, reject, safe version, execute and the judge-clickable 'Insert invoices' trigger; refusals from the server are shown as toasts.
+**Tests:** Verified manually: the 61-customer refund shows a red overshoot with Normal gate ALLOW against SEALGATE BLOCK R06 and a popup; the smallest safe version executed from the card; the 40-row transfer was approved by two people, the invoices were inserted, and execution showed the cracked seal with effect drift (40 to 4000) (T8.2-1..3,7).
+**Deviations from plan:** none
+**Last-moment changes:** no
+**Suggested commit message:** M8.2: three-stage strip, seal states, verdict row and popups
+**Known issues:** none
+
+### [8.3] Overlays: diff, Shadow Mode, audit — 2026-10-11 14:35 IST — Owner: Kanak-Agrawal-3008
+**What has changed:** `frontend/src/components/Overlay.jsx`, `DiffOverlay.jsx`, `ShadowOverlay.jsx`, `AuditDrawer.jsx`.
+**Why:** Detail views have been needed without leaving the page: the row-level diff, the total result of a Shadow session with Promote and Discard, and the hash chain with Verify and Replay.
+**How:** Overlays close with Esc and on click outside. The diff paginates the first 20 rows per table and colours rows inside the envelope green and outside red. The audit view marks every row from the first broken entry and replays a decision against its stored policy.
+**Tests:** Overlays have been built against the endpoints covered by the backend tests (M1.3, M6.2, M6.3). T8.3-1..6 have been exercised through the API-level tests; a full manual pass of each overlay is part of the rehearsal in M9.3.
+**Deviations from plan:** none
+**Last-moment changes:** no
+**Suggested commit message:** M8.3: diff, Shadow Mode and audit overlays
+**Known issues:** none
+
+### [8.4] Attack Lab page and AI toggle — 2026-10-11 14:35 IST — Owner: Kanak-Agrawal-3008
+**What has changed:** `frontend/src/pages/AttackLab.jsx`, AI toggle in `TopBar.jsx`.
+**Why:** The evaluation evidence has had to be shown live, with the suite commit hash, the reported misses and a way for judges to add their own case.
+**How:** The page calls `/lab/run` and shows exactly what is returned: per mode attacks stopped and harmless allowed, a row per case with outcomes in modes A, B and C against the pre-registered expectation, and the misses. No number is hard-coded. 'Add your own case' posts to `/lab/case`.
+**Tests:** Verified in the browser pane: running the suite returned A 4/23, B 8/23, C 22/23 attacks stopped with 23/23 harmless allowed in every mode, and listed the A10 miss (T8.4-1,2).
+**Deviations from plan:** none
+**Last-moment changes:** no
+**Suggested commit message:** M8.4: Attack Lab page with live ablation results and AI toggle
+**Known issues:** none
