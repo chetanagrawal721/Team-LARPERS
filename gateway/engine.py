@@ -22,6 +22,7 @@ class Engine:
         self.policy = policy or load_policy(domain)
         self.mode = mode
         self.auto_execute = True
+        self.run_id = ""                 # the agent run whose proposal is being processed (for the live log)
         self.require_human = False       # True in the live app: every action, even an allowed one, waits for a person
         self.lock = threading.RLock()
         self.state = init_state(self.data_dir / f"{domain}_state.db")
@@ -76,7 +77,16 @@ class Engine:
 
     def trace(self, tid: str, text: str, status: str = "ok", **data) -> None:
         """One line of the live pipeline feed: what the gateway is doing right now, and whether it passed."""
-        self.emit("pipeline", data.pop("decision_id", None), trace=tid, text=text, status=status, **data)
+        did = data.pop("decision_id", None)
+        run = (self.run_of(did) if did else "") or self.run_id
+        self.emit("pipeline", did, trace=tid, run=run, text=text, status=status, **data)
+
+    def run_of(self, decision_id: str) -> str:
+        r = self.state.execute("SELECT meta_json FROM decisions WHERE id=?", (decision_id,)).fetchone()
+        try:
+            return json.loads(r["meta_json"] or "{}").get("run", "") if r else ""
+        except ValueError:
+            return ""
 
     def emit_sandbox(self, tid: str, p, effect, chk) -> None:
         """Every row the sandbox run touched, each marked inside (approved) or outside (denied) what was asked."""
@@ -90,7 +100,7 @@ class Engine:
                              "amount_minor": m.get("amount_minor"), "inside": pk not in bad})
         total = len(rows)
         rows.sort(key=lambda r: (not r["inside"], r["table"], r["pk"]))
-        self.emit("sandbox", None, trace=tid, agent=p.agent, action=p.action, total=total,
+        self.emit("sandbox", None, trace=tid, run=self.run_id, agent=p.agent, action=p.action, total=total,
                   outside=sum(1 for r in rows if not r["inside"]), rows=rows[:300], truncated=total > 300)
 
     def new_id(self) -> str:
@@ -158,8 +168,9 @@ class Engine:
         return d
 
     # ---- propose ---------------------------------------------------------------------
-    def propose(self, p_raw: dict) -> Decision:
+    def propose(self, p_raw: dict, run: str = "") -> Decision:
         with self.lock:
+            self.run_id = run
             p = Proposal(**p_raw)
             self.trace(p.nonce, f"Request received: {p.agent} wants to {p.action.replace('_', ' ')}", "info", agent=p.agent, action=p.action)
             if p.agent not in self.policy.agents:
@@ -340,7 +351,7 @@ class Engine:
             d.safe_version = safe_version.compute(self, p, d, env)
             if d.safe_version:
                 self.trace(p.nonce, f"Smallest safe version found: {d.safe_version['description']} (would be {d.safe_version['verdict']})", "info", decision_id=d.id)
-        meta = {"human": human, "state_ver": measured.state_ver if measured else "",
+        meta = {"run": self.run_id, "human": human, "state_ver": measured.state_ver if measured else "",
                 "effect_hash": resolver.effect_hash(effect) if effect else "",
                 "label_path_hash": resolver.label_path_hash(effect) if effect else "",
                 "label_catalog_ver": pol.label_catalog_ver}

@@ -5,7 +5,7 @@ from .schemas import Effect, Envelope, EnvelopeCheck
 # Scope keys an action is expected to carry, and how a scope key maps onto an affected row.
 SCOPE_KEYS = {
     "refund": ["customer", "month"], "update_contact": ["customer"], "lookup": ["customer"],
-    "payee_change": ["vendor"], "grant_role": ["target"], "transfer": [],
+    "payee_change": ["vendor"], "grant_role": ["target"], "transfer": ["vendor"],
     "send_report": ["patient"], "delete_record": ["patient"], "write_file": [], "send_email": [],
 }
 REQUIRED_SCOPE = {"refund": ["customer"], "update_contact": ["customer"], "payee_change": ["vendor"],

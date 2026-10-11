@@ -61,9 +61,9 @@ def health():
 
 
 @app.post("/propose")
-def propose(body: dict):
+def propose(body: dict, x_run: str | None = Header(None)):
     try:
-        return engine().propose(body)
+        return engine().propose(body, run=(x_run or "")[:40])
     except ValidationError as e:
         raise HTTPException(422, detail=e.errors(include_url=False, include_context=False, include_input=False))
 
