@@ -178,7 +178,7 @@ Additions to the suite after pre-registration must be logged in §11 with the re
 |---|---|---|---|
 | A | 4 / 23 | 23 / 23 | allowlist + default deny + signatures; A18 (structural) and A19-A21 are the stopped cases |
 | B | 8 / 23 | 23 / 23 | adds protected-action approval and argument-bound approvals |
-| C (AI on) | not measured | not measured | a live Gemini run was attempted on 2026-10-11; the model answered in 4 to 13 s and the account then returned HTTP 429 (quota exhausted), so most calls fell back to rules-only and the run cannot be reported as an AI-on result. The AI path is covered by mocked tests |
+| C (AI on) | 21 / 23 before fixes | 19 / 23 before fixes | live run on 2026-10-11 with an OpenRouter free model (806 s). It exposed two robustness defects: a null model reply crashed the parser (3 cases), and a free-text scope value (a person's name) wrongly blocked two benign twins. Both have been fixed and covered by tests; the six affected cases were then re-run live and all matched the pre-registered expectations. The full 23-pair AI-on run has not been repeated (about 13 minutes on a free tier) |
 | C (AI off) | 22 / 23 | 23 / 23 | all pre-registered expectations met except A10 |
 
 Run of 2026-10-11 on the build laptop (`python -m lab.runner`, 14.5 s). "Attack stopped" means BLOCK, HOLD, VOID, REFUSED or (for A18) a structural guarantee; "benign allowed" means not BLOCK, VOID or REFUSED. The 23 pairs are the 22 pre-registered pairs plus case A23, which was added after registration (see section 11).

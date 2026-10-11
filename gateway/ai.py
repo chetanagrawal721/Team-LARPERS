@@ -8,6 +8,8 @@ import re
 from typing import Literal
 
 import httpx
+
+from . import config  # noqa: F401  (loads .env so AI settings are available)
 from pydantic import BaseModel, ConfigDict, ValidationError
 
 TIMEOUT_SECONDS = 3.0                              # default; AI_TIMEOUT_SECONDS overrides it for slower models
@@ -88,9 +90,9 @@ def ask(system: str, user: str, schema: type[BaseModel]) -> tuple[BaseModel | No
         raw = "this is not json" if STATE["force"] == "garbage" else _call(system, user)
     except httpx.TimeoutException:
         return None, "timeout"
-    except (httpx.HTTPError, KeyError, IndexError, ValueError, OSError):
+    except (httpx.HTTPError, KeyError, IndexError, ValueError, OSError, TypeError):
         return None, "error"
     try:
         return schema.model_validate(_extract_json(raw)), "ok"
-    except (ValueError, ValidationError):
+    except (ValueError, ValidationError, AttributeError, TypeError):    # e.g. a null message body
         return None, "invalid"

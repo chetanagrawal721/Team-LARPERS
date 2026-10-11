@@ -171,3 +171,15 @@ def test_every_hold_or_block_has_explanation(engine):
 
 def test_toggle_endpoint(client):
     assert client.post("/ai/toggle").json()["enabled"] in (True, False)
+
+
+# ---------------- robustness found by the live AI run ----------------
+def test_null_message_body_is_invalid_not_a_crash(llm):
+    llm(lambda r: httpx.Response(200, json={"choices": [{"message": {"content": None}}]}))
+    assert ai.ask("s", "u", ai.EscalationResult) in ((None, "invalid"), (None, "error"))
+
+
+def test_free_text_scope_value_is_discarded(llm, policy):
+    llm(reply({"scope": {"patient": "Ramesh"}, "max_rows": 1, "max_amount_minor": None, "allowed_destinations": []}))
+    env, info = ai_layer.build_envelope(policy, "payee_change", {"vendor": "V-17"}, "Change Ramesh's vendor")
+    assert env.source == "policy_default" and "vague" in info["flag"]

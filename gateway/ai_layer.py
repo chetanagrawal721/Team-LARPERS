@@ -23,6 +23,22 @@ class EnvelopeAnswer(BaseModel):
     allowed_destinations: list[str] = []
 
 
+import re
+
+# Scope values must look like real identifiers; free-form text from a model (e.g. a person's name) is discarded.
+SCOPE_FORMAT = {"customer": r"C-\d{4}|K-\d{4}", "vendor": r"V-\d{2}", "patient": r"P-\d{4}",
+                "month": r"January|February|March|April|May|June|July|August|September|October|November|December",
+                "target": r"[A-Za-z0-9_-]{1,40}"}
+
+
+def _valid_scope(raw: dict, keys: list[str]) -> dict:
+    out = {}
+    for k, v in raw.items():
+        if k in keys and isinstance(v, (str, int)) and re.fullmatch(SCOPE_FORMAT.get(k, r".{1,40}"), str(v)):
+            out[k] = str(v)
+    return out
+
+
 def _narrower(ai_limit, policy_limit):
     """final_limit = min(ai_limit, policy_limit); AI can never widen what the policy allows."""
     if ai_limit is None or ai_limit < 0:
@@ -42,7 +58,7 @@ def build_envelope(policy: Policy, action: str, args: dict, instruction: str) ->
     info["status"] = status
     if res is None:
         return default, info
-    scope = {k: str(v) for k, v in res.scope.items() if k in keys}
+    scope = _valid_scope(res.scope, keys)
     required = envelope_mod.REQUIRED_SCOPE.get(action, [])
     if any(k not in scope for k in required):
         info["flag"] = "instruction too vague; strict policy default used"
