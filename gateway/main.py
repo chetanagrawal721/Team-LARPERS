@@ -1,6 +1,7 @@
 import os
 import subprocess
 import sys
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.responses import StreamingResponse
@@ -13,7 +14,13 @@ from .engine import Engine
 from .events import Bus
 from .schemas import ApprovalRequest, Event
 
-app = FastAPI(title="SEALGATE")
+@asynccontextmanager
+async def lifespan(_):
+    outbox.start_worker(lambda: ENGINES.values())
+    yield
+
+
+app = FastAPI(title="SEALGATE", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:5173"],
                    allow_methods=["*"], allow_headers=["*"])
 
@@ -38,11 +45,6 @@ async def gate_error(_, exc: GateError):
 
 def human(x_user: str | None, x_token: str | None) -> dict:
     return approvals.authenticate(x_user, x_token)
-
-
-@app.on_event("startup")
-def _startup():
-    outbox.start_worker(lambda: ENGINES.values())
 
 
 @app.get("/health")
@@ -227,9 +229,6 @@ def demo_chat(body: dict):
     return _spawn(name, text)
 
 
-@app.post("/demo/{scenario}")
-def demo_scenario(scenario: str):
-    return _spawn(scenario)
 
 
 LAB = {"last": None}
@@ -260,3 +259,21 @@ def lab_suite():
 def lab_case(body: dict):
     from lab import runner
     return runner.run_custom(body)
+
+
+@app.post("/demo/reset")
+def demo_reset():
+    """Restore the initial demo state: fresh fictional data and an empty audit log for every domain."""
+    from . import reset
+    for e in ENGINES.values():
+        e.close()
+    ENGINES.clear()
+    reset.reset_all(config.DATA_DIR)
+    BUS.history.clear()
+    CURRENT["domain"] = "bank"
+    return {"reset": list(config.DOMAINS)}
+
+
+@app.post("/demo/{scenario}")
+def demo_scenario(scenario: str):
+    return _spawn(scenario)

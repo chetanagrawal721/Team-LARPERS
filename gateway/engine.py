@@ -41,6 +41,13 @@ class Engine:
     def business_tables(self) -> list[str]:
         return list(importlib.import_module(f"gateway.seed.{self.domain}_seed").BUSINESS_TABLES)
 
+    def close(self) -> None:
+        """Release the state file (required on Windows before the file can be deleted)."""
+        try:
+            self.state.close()
+        except Exception:
+            pass
+
     def real_conn(self):
         return connect(self.real_path)
 
