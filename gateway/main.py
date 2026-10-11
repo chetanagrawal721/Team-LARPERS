@@ -1,9 +1,11 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import ValidationError
 
-from . import audit, config
+from . import approvals, audit, outbox
+from .approvals import GateError
 from .engine import Engine
+from .schemas import ApprovalRequest
 
 app = FastAPI(title="SEALGATE")
 app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:5173"],
@@ -20,6 +22,21 @@ def engine() -> Engine:
     return ENGINES[d]
 
 
+@app.exception_handler(GateError)
+async def gate_error(_, exc: GateError):
+    from fastapi.responses import JSONResponse
+    return JSONResponse(status_code=exc.status, content={"detail": exc.message})
+
+
+def human(x_user: str | None, x_token: str | None) -> dict:
+    return approvals.authenticate(x_user, x_token)
+
+
+@app.on_event("startup")
+def _startup():
+    outbox.start_worker(lambda: ENGINES.values())
+
+
 @app.get("/health")
 def health():
     return {"status": "ok", "domain": CURRENT["domain"]}
@@ -31,6 +48,48 @@ def propose(body: dict):
         return engine().propose(body)
     except ValidationError as e:
         raise HTTPException(422, detail=e.errors(include_url=False, include_context=False, include_input=False))
+
+
+@app.get("/status/{decision_id}")
+def status(decision_id: str):
+    d = engine().get_decision(decision_id)
+    if not d:
+        raise HTTPException(404, "no such decision")
+    return d
+
+
+@app.get("/actions")
+def actions(limit: int = 50):
+    return engine().list_decisions(limit)
+
+
+@app.get("/action/{decision_id}")
+def action(decision_id: str):
+    d = engine().get_decision(decision_id)
+    if not d:
+        raise HTTPException(404, "no such decision")
+    return d
+
+
+@app.post("/approve")
+def approve(req: ApprovalRequest, x_user: str | None = Header(None), x_token: str | None = Header(None)):
+    return approvals.approve(engine(), human(x_user, x_token), req.decision_id, req.note)
+
+
+@app.post("/reject")
+def reject(req: ApprovalRequest, x_user: str | None = Header(None), x_token: str | None = Header(None)):
+    return approvals.reject(engine(), human(x_user, x_token), req.decision_id, req.note)
+
+
+@app.post("/execute/{decision_id}")
+def execute(decision_id: str, x_user: str | None = Header(None), x_token: str | None = Header(None)):
+    human(x_user, x_token)
+    return engine().execute(decision_id)
+
+
+@app.post("/demo/insert-invoices")
+def demo_insert_invoices():
+    return {"inserted": engine().demo_insert_invoices()}
 
 
 @app.get("/audit")

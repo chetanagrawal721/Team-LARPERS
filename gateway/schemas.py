@@ -4,7 +4,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 Verdict = Literal["ALLOW", "HOLD", "BLOCK", "VOID", "DONE"]
-Status = Literal["done", "pending", "blocked", "void", "rejected", "shadow", "allowed"]
+Status = Literal["done", "pending", "approved", "blocked", "void", "rejected", "shadow", "allowed"]
 DriftType = Literal["args_drift", "effect_drift", "label_drift", "policy_drift",
                     "state_drift", "replay", "expired", "bad_signature"]
 
