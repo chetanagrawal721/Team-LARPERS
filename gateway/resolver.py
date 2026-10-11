@@ -45,6 +45,10 @@ class Resolver:
     def apply(self, conn: sqlite3.Connection, args: dict, ctx: Ctx) -> dict:
         raise NotImplementedError
 
+    def reduce(self, args: dict, effect, check, env) -> dict | None:
+        """Smallest safe version: return reduced args that make the effect safer, or None if not reducible."""
+        return None
+
 
 def snapshot(conn: sqlite3.Connection, table: str) -> dict:
     cur = conn.execute(f"SELECT * FROM {table}")      # table comes from a resolver's fixed whitelist

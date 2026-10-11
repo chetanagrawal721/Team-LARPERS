@@ -5,7 +5,7 @@ import pathlib
 import threading
 import uuid
 
-from . import ai_layer, audit, budgets, clock, config, envelope as envelope_mod, execute as execute_mod, registry, resolver, resolvers, seal, verify
+from . import ai_layer, safe_version, shadow, audit, budgets, clock, config, envelope as envelope_mod, execute as execute_mod, registry, resolver, resolvers, seal, verify
 from .db import init_state
 from .decide import baseline_verdict, decide
 from .policy_loader import Policy, load as load_policy
@@ -36,6 +36,9 @@ class Engine:
         """Re-create the fictional database for this domain (deterministic seed)."""
         seed = importlib.import_module(f"gateway.seed.{self.domain}_seed")
         seed.seed(self.real_path)
+
+    def business_tables(self) -> list[str]:
+        return list(importlib.import_module(f"gateway.seed.{self.domain}_seed").BUSINESS_TABLES)
 
     def real_conn(self):
         return connect(self.real_path)
@@ -186,7 +189,8 @@ class Engine:
             c.close()
         return n
 
-    def _analyse(self, p: Proposal, p_raw: dict, parent_id: str | None = None, requeue: bool = False) -> Decision:
+    def _analyse(self, p: Proposal, p_raw: dict, parent_id: str | None = None, requeue: bool = False,
+                 dry: bool = False, env_override: Envelope | None = None, accepted_by: str = "") -> Decision | None:
         pol = self.policy
         human = registry.resolve_human(pol, p.agent, p.on_behalf_of)
         honey = pol.is_honeytoken(p.action)
@@ -202,7 +206,7 @@ class Engine:
                "ai": {"escalation": "NONE", "status": "n/a", "reason": ""}}
         early = (not known) or honey or inp["frozen"] or (not inp["permitted"]) or inp["self_change"]
         if early:
-            return self._finish(p, p_raw, human, inp, None, None, parent_id, requeue)
+            return self._finish(p, p_raw, human, inp, None, None, parent_id, requeue, dry)
         did = self.new_id()
         try:
             res = resolvers.get(self.domain, p.action)
@@ -210,23 +214,30 @@ class Engine:
                                         Ctx(policy=pol, agent=p.agent, human=human, now=int(clock.now()),
                                             decision_id=did), scratch_dir=self.scratch)
         except ResolverError as e:
+            if dry:
+                return None
             return self.refuse(p_raw, p.agent, p.action, "R99", f"invalid request: {e}")
         effect = measured.effect
-        env, env_info = ai_layer.build_envelope(pol, p.action, p.args, p.user_instruction)
+        if env_override is not None:
+            env, env_info = env_override, {"status": "n/a"}
+        else:
+            env, env_info = ai_layer.build_envelope(pol, p.action, p.args, p.user_instruction)
         chk = envelope_mod.check(effect, env, pol)
         conn = self.real_conn()
         try:
             bud = budgets.check(conn, pol, p.agent, p.action, effect.amount_minor)
         finally:
             conn.close()
-        ai = self.ai_advice(p, effect, env_info)
+        ai = ({"escalation": "NONE", "status": "n/a", "reason": ""} if dry
+              else self.ai_advice(p, effect, env_info))
         inp.update(effect=effect.model_dump(), envelope=env.model_dump(), check=chk.model_dump(),
                    budget_exceeded=bud["exceeded"], budget=bud["snapshot"], ai=ai,
                    intent_unverified=bool(p.intent) and ai.get("status") != "ok")
-        return self._finish(p, p_raw, human, inp, measured, did, parent_id, requeue)
+        return self._finish(p, p_raw, human, inp, measured, did, parent_id, requeue, dry, env)
 
     def _finish(self, p: Proposal, p_raw: dict, human: str, inp: dict, measured, did: str | None,
-                parent_id: str | None = None, requeue: bool = False) -> Decision:
+                parent_id: str | None = None, requeue: bool = False, dry: bool = False,
+                env: Envelope | None = None) -> Decision | None:
         pol = self.policy
         out = decide(inp, pol)
         if requeue and out['verdict'] == 'ALLOW':
@@ -236,7 +247,7 @@ class Engine:
         effect = measured.effect if measured else None
         status = {"ALLOW": "allowed", "HOLD": "pending", "BLOCK": "blocked"}[out["verdict"]]
         ai_reason = (inp.get("ai") or {}).get("reason", "")
-        if out["verdict"] != "ALLOW" and not ai_reason:
+        if out["verdict"] != "ALLOW" and not ai_reason and not dry:
             ai_reason, _src = ai_layer.explain(out["rule"], out["reason"], "")
         d = Decision(
             id=did or self.new_id(), verdict=out["verdict"], rule=out["rule"], reason=out["reason"],
@@ -247,12 +258,14 @@ class Engine:
             rules_fired=out["rules_fired"], ai_reason=ai_reason,
             agent=p.agent, action=p.action, agent_claim=p.intent, policy_hash=pol.hash,
             created_ts=int(clock.now()))
+        if dry:
+            return d
         meta = {"human": human, "state_ver": measured.state_ver if measured else "",
                 "effect_hash": resolver.effect_hash(effect) if effect else "",
                 "label_path_hash": resolver.label_path_hash(effect) if effect else "",
                 "label_catalog_ver": pol.label_catalog_ver}
         payload = {"proposal": {k: v for k, v in p_raw.items() if k != "sig"}, "inputs": inp, "outcome": out,
-                   "meta": meta}
+                   "meta": meta, "requeue": requeue}
         audit.append(self.state, d.created_ts, p.agent, p.action, payload, d.verdict, d.rule, d.decision_path,
                      pol.hash)
         if effect is not None:
@@ -260,6 +273,12 @@ class Engine:
         self.save_decision(d, p_raw, requester=human, meta=meta, parent_id=parent_id)
         self.emit("decision", d.id, verdict=d.verdict, rule=d.rule, reason=d.reason, agent=p.agent,
                   action=p.action, tier=d.tier)
+        if d.verdict in ("BLOCK", "HOLD") and effect is not None and env is not None:
+            d.safe_version = safe_version.compute(self, p, d, env)
+            if d.safe_version:
+                self.save_decision(d)
+        if shadow.route(self, d, p, human, inp, measured):
+            return d
         if d.verdict == "ALLOW":
             self._auto_execute(d, p, human, meta)
         return d
