@@ -246,7 +246,7 @@ Additions to the suite after pre-registration must be logged in §11 with the re
 - [ ] **Phase 8 checkpoint**
 
 ### Phase 9 — Evaluation & release
-- [ ] 9.1 Attack Lab runner — atharvg44
+- [x] 9.1 Attack Lab runner — atharvg44
 - [ ] 9.2 End-to-end integration — all
 - [ ] 9.3 Rehearsal and release (`v1.0-vortexa`) — all
 - [ ] **Final Release Checklist complete**
@@ -264,6 +264,7 @@ Record every change made after Phase 0 to the contract, suite, scope or design.
 | 2026-10-11 | Team | Label-catalog version has been added to the seal | Relabelling between approval and execution | New drift type `label_drift` |
 | 2026-10-11 | Team | Expected-effect envelope and Shadow Mode have been added | Deterministic "more than asked" check; reduced approval fatigue | New milestones 3.1, 5.2, 6.2 |
 | 2026-10-11 | Team | Demo has been expanded to three domains | Demonstrate generality | Milestone 7.2; hospital is cuttable |
+| 2026-10-11 | atharvg44 | Case A23 has been added to the paired suite (budget split across three agents, 120 refunds) | Pre-registered case A10 (90 refunds) stays inside both budget limits (Rs 90,000 of the Rs 1,00,000 resource budget), so the gateway correctly allows it; A10 is retained and reported as a miss, and A23 has been added with a corrected volume | Mode C stops A23; A10 remains a reported miss |
 | | | | | |
 
 ---
@@ -309,6 +310,7 @@ One line per milestone push, decision, or notable event. Newest at the bottom.
 | 2026-10-11 14:17 | aryanketkar-15 | Milestone | M6.3 — decision replay and the honeytoken freeze with unfreeze have been implemented. | |
 | 2026-10-11 14:22 | atharvg44 | Milestone | M7.1 — signed agent tools, scripted scenarios and the event stream have been implemented. | |
 | 2026-10-11 14:22 | chetanagrawal721 | Milestone | M7.2 — the hospital and e-commerce domains have been implemented through policy files and resolvers. | |
+| 2026-10-11 14:28 | atharvg44 | Milestone | M9.1 — the paired attack-suite runner with ablation modes A, B and C has been implemented (A 4/22, B 8/22, C 21/22 attacks stopped; all benign twins allowed). | |
 
 **Entry types:** Decision · Design · Review · Milestone · Fix · Change · Test · Result · Docs
 

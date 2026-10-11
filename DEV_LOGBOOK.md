@@ -37,7 +37,7 @@
 | 8.2 | Three-stage strip, verdict, popups | Kanak-Agrawal-3008 | ☐ |
 | 8.3 | Diff, Shadow, Audit overlays | Kanak-Agrawal-3008 | ☐ |
 | 8.4 | Attack Lab page, AI toggle | Kanak-Agrawal-3008 | ☐ |
-| 9.1 | Attack Lab runner | atharvg44 | ☐ |
+| 9.1 | Attack Lab runner | atharvg44 | ☑ |
 | 9.2 | End-to-end integration | all | ☐ |
 | 9.3 | Rehearsal and release | all | ☐ |
 
@@ -298,3 +298,13 @@
 **Last-moment changes:** no
 **Suggested commit message:** M7.2: hospital and e-commerce domains via policy files and resolvers
 **Known issues:** none
+
+### [9.1] Attack Lab runner (ablation A/B/C) — 2026-10-11 14:28 IST — Owner: atharvg44
+**What has changed:** `lab/runner.py`, `gateway/decide.py` (`mode_decide`), `gateway/engine.py`, `gateway/execute.py`, `gateway/approvals.py` (mode switches), `gateway/main.py` (`/lab/run`, `/lab/last`, `/lab/suite`, `/lab/case`), `lab/suite.yaml` (case A23 added), `tests/test_lab.py`.
+**Why:** The team has needed reproducible, honest evidence: every attack and its benign twin run in three configurations of the same gateway on freshly seeded data.
+**How:** The engine has a mode switch. Mode A keeps signature checks, the registry and default deny. Mode B adds request-level approval of protected actions and approvals bound to the argument hash only (no separation of duties). Mode C is the full system. The runner seeds each domain once, copies the file for every case, defers execution where the case needs an approval gap, applies the named mutation, and maps results to outcomes such as VOID:effect_drift. A crash is reported as FAIL and never as a pass. Results are saved to a git-ignored file and returned with the suite commit hash.
+**Tests:** T9.1-1..5 covered by `tests/test_lab.py` (9 passed); full suite 199 passed. Live result: mode A stops 4 of 22 attacks, mode B 8 of 22, mode C 21 of 22, with all 22 benign twins allowed in every mode.
+**Deviations from plan:** Pre-registered case A10 (90 refunds across three agents) stays within both budget limits, so mode C allows it and the runner reports it as a miss; the corrected case A23 (120 refunds) has been added and the addition has been logged in the journal.
+**Last-moment changes:** yes (journal section 11)
+**Suggested commit message:** M9.1: paired attack-suite runner with ablation modes A/B/C
+**Known issues:** A10 reported as a miss (suite volume was below the budget limit).

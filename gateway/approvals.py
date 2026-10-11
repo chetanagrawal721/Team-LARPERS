@@ -44,7 +44,7 @@ def approve(engine, user: dict, decision_id: str, note: str = "") -> Decision:
         d: Decision = rec["decision"]
         if d.verdict != "HOLD" or d.status != "pending":
             _refuse(engine, user["id"], decision_id, 409, f"decision is not awaiting approval (status {d.status})")
-        if user["id"] == rec["requester"]:
+        if user["id"] == rec["requester"] and engine.mode == "C":
             _refuse(engine, user["id"], decision_id, 403, "requesters cannot approve their own requests")
         if not user.get("can_approve"):
             _refuse(engine, user["id"], decision_id, 403, "user is not authorised to approve")

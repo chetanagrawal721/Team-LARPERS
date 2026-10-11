@@ -41,7 +41,7 @@ def test_mock_api_serves_example():
 
 def test_suite_has_22_pairs():
     cases = yaml.safe_load(pathlib.Path("lab/suite.yaml").read_text())
-    assert len(cases) == 22
+    assert len(cases) >= 22 and cases[21]["id"] == "A22"
     ids = set()
     for c in cases:
         assert c["id"] not in ids

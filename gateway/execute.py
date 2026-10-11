@@ -46,7 +46,12 @@ def execute_sealed(engine, decision_id: str) -> Decision:
         # cheap checks first: signature, expiry, replay, args, policy, label catalog
         fresh = {"nonce_used": used, "action_hash": seal.action_hash(p["agent"], p["action"], p["args"]),
                  "policy_ver": pol.rules_hash, "label_catalog_ver": pol.label_catalog_ver}
-        drift = seal.check(token, fresh)
+        mode = engine.mode
+        if mode == "A":
+            fresh = {}                                  # allowlist only: nothing is re-checked
+        elif mode == "B":
+            fresh = {"nonce_used": used, "action_hash": fresh["action_hash"]}   # argument-bound approval only
+        drift = seal.check(token, fresh) if mode != "A" else "OK"
         if drift == "replay":
             # the original decision stays DONE; the refused second attempt is logged as its own record
             nd = d.model_copy(update={"id": engine.new_id(), "created_ts": int(clock.now())})
@@ -61,7 +66,7 @@ def execute_sealed(engine, decision_id: str) -> Decision:
         try:
             conn.execute("BEGIN IMMEDIATE")
             try:
-                if conn.execute("SELECT 1 FROM used_seals WHERE nonce=?", (token["nonce"],)).fetchone():
+                if mode != "A" and conn.execute("SELECT 1 FROM used_seals WHERE nonce=?", (token["nonce"],)).fetchone():
                     conn.execute("ROLLBACK")
                     nd = d.model_copy(update={"id": engine.new_id()})
                     return _record_void(engine, rec, nd, "replay", "seal nonce already consumed")
@@ -73,13 +78,13 @@ def execute_sealed(engine, decision_id: str) -> Decision:
                     FAULT()
                 fresh2 = {"effect_hash": resolver.effect_hash(m.effect),
                           "label_path_hash": resolver.label_path_hash(m.effect), "state_ver": m.state_ver}
-                drift = seal.check(token, fresh2)
+                drift = seal.check(token, fresh2) if mode == "C" else "OK"
                 if drift != "OK":
                     conn.execute("ROLLBACK")
                     _record_void(engine, rec, d, drift, _describe(rec, m.effect, pol))
                     _requeue(engine, rec, d)
                     return d
-                if p["action"] in {a for b in pol.model.budgets.values() for a in [b.get("action")]}:
+                if mode == "C" and p["action"] in {a for b in pol.model.budgets.values() for a in [b.get("action")]}:
                     bud = budgets.charge(conn, pol, p["agent"], p["action"], m.effect.amount_minor)
                     if bud["exceeded"] and d.verdict == "ALLOW":
                         conn.execute("ROLLBACK")
@@ -88,8 +93,9 @@ def execute_sealed(engine, decision_id: str) -> Decision:
                         d.approvals_needed = max(1, d.approvals_needed)
                         engine.save_decision(d)
                         return d
-                conn.execute("INSERT INTO used_seals (nonce, decision_id, ts) VALUES (?,?,?)",
-                             (token["nonce"], d.id, int(clock.now())))
+                if mode != "A":
+                    conn.execute("INSERT INTO used_seals (nonce, decision_id, ts) VALUES (?,?,?)",
+                                 (token["nonce"], d.id, int(clock.now())))
                 conn.execute("COMMIT")
             except Exception:
                 try:

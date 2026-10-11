@@ -51,3 +51,18 @@ def baseline_verdict(inp: dict, policy: Policy) -> str:
     if policy.is_protected(inp["action"]):
         return "HOLD"
     return "ALLOW"
+
+
+def mode_decide(inp: dict, policy: Policy, mode: str) -> dict:
+    """Ablation baselines used by the Attack Lab (same gateway, features switched off).
+    A = allowlist + default deny + signature check. B = A + request-level approval of protected actions."""
+    stripped = dict(inp, effect=None, check=None)
+    blocked = rules.block_rules(stripped, policy)
+    if blocked:
+        return {"verdict": "BLOCK", "rule": blocked[0], "reason": blocked[1], "rules_fired": [blocked[0]],
+                "tier": "T0", "approvals_needed": 0, "decision_path": "rules-only"}
+    if mode == "B" and policy.is_protected(inp["action"]):
+        return {"verdict": "HOLD", "rule": "R09", "reason": "protected action needs approval", "rules_fired": ["R09"],
+                "tier": "T0", "approvals_needed": 1, "decision_path": "rules-only"}
+    return {"verdict": "ALLOW", "rule": "R12", "reason": f"mode {mode}: request-level checks passed",
+            "rules_fired": ["R12"], "tier": "T0", "approvals_needed": 0, "decision_path": "rules-only"}

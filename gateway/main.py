@@ -230,3 +230,33 @@ def demo_chat(body: dict):
 @app.post("/demo/{scenario}")
 def demo_scenario(scenario: str):
     return _spawn(scenario)
+
+
+LAB = {"last": None}
+
+
+@app.post("/lab/run")
+def lab_run(mode: str = "ALL"):
+    from lab import runner
+    modes = runner.MODES if mode.upper() == "ALL" else tuple(m for m in mode.upper() if m in runner.MODES)
+    if not modes:
+        raise HTTPException(422, "mode must be A, B, C or ALL")
+    LAB["last"] = runner.run_suite(modes=modes)
+    return LAB["last"]
+
+
+@app.get("/lab/last")
+def lab_last():
+    return LAB["last"] or {"summary": None}
+
+
+@app.get("/lab/suite")
+def lab_suite():
+    from lab import runner
+    return {"commit": runner.suite_commit(), "cases": runner.load_suite()}
+
+
+@app.post("/lab/case")
+def lab_case(body: dict):
+    from lab import runner
+    return runner.run_custom(body)
