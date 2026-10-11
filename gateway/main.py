@@ -224,7 +224,7 @@ def demo_chat(body: dict):
     text = str(body.get("text", ""))[:500]
     name, _ = scenarios.from_text(text)
     if not name:
-        BUS.publish(Event(type="chat", ts=0, data={"from": "gate", "agent": "", "text": "I can only run the demo requests: refunds, contact updates, vendor changes, invoice payments, reports and mailings."}))
+        BUS.publish(Event(type="chat", ts=0, data={"from": "gate", "agent": "", "text": "This box sends requests to the agent (for example: refund C-1042's duplicate March charges, pay the pending invoices, share a report). Approvals, safe versions and execution are done with the buttons in the moderator console on the right."}))
         return {"started": None}
     return _spawn(name, text)
 
