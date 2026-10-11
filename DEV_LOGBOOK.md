@@ -31,8 +31,8 @@
 | 6.1 | Smallest safe version | chetanagrawal721 | ☑ |
 | 6.2 | Shadow Mode | chetanagrawal721 | ☑ |
 | 6.3 | Replay and honeytoken freeze | aryanketkar-15 | ☑ |
-| 7.1 | Agents, tools, scenarios | atharvg44 | ☐ |
-| 7.2 | Hospital and e-commerce domains | chetanagrawal721 | ☐ |
+| 7.1 | Agents, tools, scenarios | atharvg44 | ☑ |
+| 7.2 | Hospital and e-commerce domains | chetanagrawal721 | ☑ |
 | 8.1 | Layout, chat, live events | Kanak-Agrawal-3008 | ☐ |
 | 8.2 | Three-stage strip, verdict, popups | Kanak-Agrawal-3008 | ☐ |
 | 8.3 | Diff, Shadow, Audit overlays | Kanak-Agrawal-3008 | ☐ |
@@ -277,4 +277,24 @@
 **Deviations from plan:** none
 **Last-moment changes:** no
 **Suggested commit message:** M6.3: decision replay against stored policy and honeytoken freeze
+**Known issues:** none
+
+### [7.1] Agents, tools and demo scenarios — 2026-10-11 14:22 IST — Owner: atharvg44
+**What has changed:** `agents/tools.py`, `agents/scenarios.py`, `agents/run.py`, `gateway/events.py` (event bus), `gateway/main.py` (`/events`, `/chat`, `/demo/{scenario}`, `/demo/chat`), `tests/test_agents.py`.
+**Why:** The agent side of every demonstration beat has needed to exist as reproducible scripts that can only propose, and the dashboard has needed a live event stream.
+**How:** An agent signs and posts requests, polls `/status` for held decisions and posts its chat lines to `/chat`; it holds only its own signing key and never imports gateway code. Scenarios run as a separate process started by the gateway with a filtered environment (agent keys only, so no user tokens or seal key). A small keyword router maps free-text chat requests to scenarios. The event bus replays recent history and then follows new events over Server-Sent Events.
+**Tests:** T7.1-1..5 covered by `tests/test_agents.py` (13 passed), including the gateway-down case and a scan proving the package contains no database path or user token.
+**Deviations from plan:** none
+**Last-moment changes:** no
+**Suggested commit message:** M7.1: signed agent tools and scripted demo scenarios
+**Known issues:** none
+
+### [7.2] Hospital and e-commerce domains — 2026-10-11 14:22 IST — Owner: chetanagrawal721
+**What has changed:** `gateway/policy/hospital.yaml`, `gateway/policy/shop.yaml`, `gateway/seed/hospital_seed.py`, `gateway/seed/shop_seed.py`, `gateway/resolvers/hospital.py`, `gateway/resolvers/shop.py`, `gateway/main.py` (`POST /domain/{name}`), `tests/test_domains.py`.
+**Why:** Generality has needed to be shown: the same engine protects three organisations when only the policy, seed data and resolvers change.
+**How:** Resolvers may report 'virtual rows' (patients disclosed by a report, recipients of a mailing, a file written) so that disclosures are measured like row changes. Mailing lists carry a declared audience and the envelope check flags recipients outside it, which reveals the 37 external addresses inside the 'staff' list. Files inherit the labels of the rows written into them, which blocks the two-agent relay. Policy overrides lower the tier for internal-only or public-only content so that ordinary mail is allowed. No change was made to rules, seal or execution code (verified by a test).
+**Tests:** T7.2-1..7 covered by `tests/test_domains.py` (11 passed); T2.3-6 (file inherits labels) is covered here; full suite 190 passed.
+**Deviations from plan:** The sensitive-access record used by the paraphrase fallback now ignores blocked actions and expires after 30 minutes, so that a blocked attempt does not hold unrelated later mail.
+**Last-moment changes:** no
+**Suggested commit message:** M7.2: hospital and e-commerce domains via policy files and resolvers
 **Known issues:** none

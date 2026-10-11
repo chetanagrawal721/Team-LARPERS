@@ -234,8 +234,8 @@ Additions to the suite after pre-registration must be logged in §11 with the re
 - [ ] **Phase 6 checkpoint**
 
 ### Phase 7 — Agents & domains
-- [ ] 7.1 Agents, tools, scenarios — atharvg44
-- [ ] 7.2 Hospital and e-commerce domains — chetanagrawal721
+- [x] 7.1 Agents, tools, scenarios — atharvg44
+- [x] 7.2 Hospital and e-commerce domains — chetanagrawal721
 - [ ] **Phase 7 checkpoint**
 
 ### Phase 8 — Frontend
@@ -307,6 +307,8 @@ One line per milestone push, decision, or notable event. Newest at the bottom.
 | 2026-10-11 14:17 | chetanagrawal721 | Milestone | M6.1 — the deterministic smallest-safe-version engine has been implemented. | |
 | 2026-10-11 14:17 | chetanagrawal721 | Milestone | M6.2 — Shadow Mode with diff-verified promotion has been implemented. | |
 | 2026-10-11 14:17 | aryanketkar-15 | Milestone | M6.3 — decision replay and the honeytoken freeze with unfreeze have been implemented. | |
+| 2026-10-11 14:22 | atharvg44 | Milestone | M7.1 — signed agent tools, scripted scenarios and the event stream have been implemented. | |
+| 2026-10-11 14:22 | chetanagrawal721 | Milestone | M7.2 — the hospital and e-commerce domains have been implemented through policy files and resolvers. | |
 
 **Entry types:** Decision · Design · Review · Milestone · Fix · Change · Test · Result · Docs
 

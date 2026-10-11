@@ -20,9 +20,10 @@ def _env(monkeypatch):
 
 
 @pytest.fixture
-def client(tmp_path):
-    from gateway import main
+def client(tmp_path, monkeypatch):
+    from gateway import config, main
     from gateway.engine import Engine
+    monkeypatch.setattr(config, "DATA_DIR", tmp_path)
     main.ENGINES.clear()
     main.CURRENT["domain"] = "bank"
     main.ENGINES["bank"] = Engine("bank", data_dir=tmp_path)

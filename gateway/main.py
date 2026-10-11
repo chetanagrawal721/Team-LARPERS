@@ -1,11 +1,17 @@
-from fastapi import FastAPI, Header, HTTPException
+import os
+import subprocess
+import sys
+
+from fastapi import FastAPI, Header, HTTPException, Request
+from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import ValidationError
 
-from . import ai, approvals, audit, outbox, replay, safe_version, shadow
+from . import ai, approvals, audit, config, outbox, replay, safe_version, shadow
 from .approvals import GateError
 from .engine import Engine
-from .schemas import ApprovalRequest
+from .events import Bus
+from .schemas import ApprovalRequest, Event
 
 app = FastAPI(title="SEALGATE")
 app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:5173"],
@@ -13,12 +19,14 @@ app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:5173"],
 
 ENGINES: dict[str, Engine] = {}
 CURRENT = {"domain": "bank"}
+BUS = Bus()
 
 
 def engine() -> Engine:
     d = CURRENT["domain"]
     if d not in ENGINES:
         ENGINES[d] = Engine(d)
+    ENGINES[d].bus = BUS
     return ENGINES[d]
 
 
@@ -157,3 +165,68 @@ def agent_unfreeze(agent: str, x_user: str | None = Header(None), x_token: str |
 def agents():
     e = engine()
     return [{"agent": a, "frozen": e.is_frozen(a)} for a in e.policy.agents]
+
+
+@app.post("/domain/{name}")
+def switch_domain(name: str):
+    if name not in config.DOMAINS:
+        raise HTTPException(404, "unknown domain")
+    CURRENT["domain"] = name
+    e = engine()
+    e.emit("domain", None, domain=name, org=e.policy.org)
+    return {"domain": name, "org": e.policy.org, "policy_hash": e.policy.hash}
+
+
+@app.get("/domain")
+def current_domain():
+    e = engine()
+    return {"domain": CURRENT["domain"], "org": e.policy.org, "policy_hash": e.policy.hash,
+            "domains": list(config.DOMAINS)}
+
+
+@app.get("/events")
+async def events(request: Request, last_event_id: str | None = Header(None)):
+    engine()
+    start = int(last_event_id) if last_event_id and last_event_id.isdigit() else 0
+    return StreamingResponse(BUS.stream(last_id=start), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
+@app.post("/chat")
+def chat(body: dict):
+    """Agents post their chat lines here; the dashboard receives them as events."""
+    BUS.publish(Event(type="chat", ts=int(__import__("time").time()),
+                      data={"from": str(body.get("from", "agent")), "agent": str(body.get("agent", "")),
+                            "text": str(body.get("text", ""))[:2000]}))
+    return {"ok": True}
+
+
+def _spawn(name: str, text: str | None = None) -> dict:
+    """Start a scripted scenario as a separate process that holds only agent signing keys."""
+    from agents import scenarios
+    if name not in scenarios.SCENARIOS:
+        raise HTTPException(404, "unknown scenario")
+    want = scenarios.DOMAIN_OF[name]
+    if CURRENT["domain"] != want:
+        switch_domain(want)
+    env = {k: v for k, v in os.environ.items() if k.startswith("AGENT_KEY_") or k in ("PATH", "SYSTEMROOT", "TEMP", "TMP")}
+    env["GATEWAY_URL"] = os.environ.get("PUBLIC_GATEWAY_URL", "http://127.0.0.1:8000")
+    args = [sys.executable, "-m", "agents.run", name] + (["--text", text] if text else [])
+    p = subprocess.Popen(args, cwd=str(config.ROOT), env=env)
+    return {"started": name, "pid": p.pid, "domain": want}
+
+
+@app.post("/demo/chat")
+def demo_chat(body: dict):
+    from agents import scenarios
+    text = str(body.get("text", ""))[:500]
+    name, _ = scenarios.from_text(text)
+    if not name:
+        BUS.publish(Event(type="chat", ts=0, data={"from": "gate", "agent": "", "text": "I can only run the demo requests: refunds, contact updates, vendor changes, invoice payments, reports and mailings."}))
+        return {"started": None}
+    return _spawn(name, text)
+
+
+@app.post("/demo/{scenario}")
+def demo_scenario(scenario: str):
+    return _spawn(scenario)

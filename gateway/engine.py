@@ -135,12 +135,14 @@ class Engine:
             return self._analyse(p, p_raw)
 
     def touched_labels(self, agent: str) -> set:
-        return {r["label"] for r in self.state.execute("SELECT label FROM agent_touched WHERE agent=?", (agent,))}
+        cutoff = int(clock.now()) - 1800        # "this task": sensitive access older than 30 minutes no longer counts
+        return {r["label"] for r in self.state.execute("SELECT label FROM agent_touched WHERE agent=? AND ts>?",
+                                                       (agent, cutoff))}
 
     def record_touched(self, agent: str, labels) -> None:
         for lbl in labels:
             if lbl in ("PII", "SECRET"):
-                self.state.execute("INSERT OR IGNORE INTO agent_touched (agent, label, ts) VALUES (?,?,?)",
+                self.state.execute("INSERT OR REPLACE INTO agent_touched (agent, label, ts) VALUES (?,?,?)",
                                    (agent, lbl, int(clock.now())))
 
     def ai_advice(self, p: Proposal, effect, env_info: dict) -> dict:
@@ -268,7 +270,7 @@ class Engine:
                    "meta": meta, "requeue": requeue}
         audit.append(self.state, d.created_ts, p.agent, p.action, payload, d.verdict, d.rule, d.decision_path,
                      pol.hash)
-        if effect is not None:
+        if effect is not None and d.verdict != "BLOCK":
             self.record_touched(p.agent, effect.labels)
         self.save_decision(d, p_raw, requester=human, meta=meta, parent_id=parent_id)
         self.emit("decision", d.id, verdict=d.verdict, rule=d.rule, reason=d.reason, agent=p.agent,
