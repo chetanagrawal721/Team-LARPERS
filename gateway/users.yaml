@@ -1,0 +1,6 @@
+# Demo-only users (fictional). Tokens live in .env as USER_TOKEN_<NAME>.
+users:
+  meera: {name: Meera Joshi,    can_approve: false, roles: {bank: ops_staff,          hospital: records_staff,      shop: support_staff}}
+  priya: {name: Priya Nair,     can_approve: true,  roles: {bank: ops_officer,        hospital: records_officer,    shop: store_manager}}
+  rahul: {name: Rahul Deshmukh, can_approve: true,  roles: {bank: branch_manager,     hospital: records_officer,    shop: store_manager}}
+  anita: {name: Anita Kulkarni, can_approve: true,  roles: {bank: compliance_officer, hospital: compliance_officer, shop: compliance_officer}}
