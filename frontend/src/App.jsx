@@ -28,6 +28,9 @@ export default function App() {
   const [orgMenu, setOrgMenu] = useState(false);
   const [offline, setOffline] = useState(false);
   const [working, setWorking] = useState(false);
+  const [activity, setActivity] = useState([]);   // live feed: agent steps, gateway pipeline lines, sandbox rows
+  const [agentMode, setAgentMode] = useState(null);
+  const [tab, setTab] = useState("chat");
   const [tick, setTick] = useState(0);            // bumps whenever the log changes, so open pages reload
   const seen = useRef(new Set());
   const pendingUser = useRef([]);                  // typed messages already on screen, so the agent's echo is not shown twice
@@ -41,6 +44,7 @@ export default function App() {
     try {
       setOrgs(await call("/orgs")); const d = await call("/domain"); setDomain(d.domain);
       setAi((await call("/ai/status")).enabled);
+      setAgentMode(await call("/agent/mode"));
     } catch { setOffline(true); }
   }, []);
   useEffect(() => { loadMeta(); refresh(); }, [loadMeta, refresh]);
@@ -60,6 +64,7 @@ export default function App() {
       setMessages((m) => [...m, e.data]);
       if (e.data.from !== "user") { setWorking(false); clearTimeout(workTimer.current); }
     }
+    if (["agent", "pipeline", "sandbox"].includes(e.type)) { setActivity((a) => [...a.slice(-700), e]); return; }
     if (e.type === "domain") { loadMeta(); refresh(); }
     if (["decision", "approval", "execution", "void", "shadow", "freeze"].includes(e.type)) {
       await refresh();
@@ -76,6 +81,7 @@ export default function App() {
   const sendRequest = async (text) => {
     pendingUser.current.push(text);
     setMessages((m) => [...m, { from: "user", text }]);
+    setTab("activity");
     startWork();
     try { await call("/demo/chat", { method: "POST", body: { text } }); }
     catch (e) { setWorking(false); setMessages((m) => [...m, { from: "gate", text: `The request could not be sent: ${e.message}. Check that the gateway is running.` }]); }
@@ -85,6 +91,7 @@ export default function App() {
     try { await call(`/demo/${name}`, { method: "POST" }); }
     catch (e) { setWorking(false); setMessages((m) => [...m, { from: "gate", text: `The scenario could not be started: ${e.message}.` }]); }
   };
+  const changeMode = async (m) => { try { setAgentMode(await call("/agent/mode", { method: "POST", body: { mode: m } })); } catch (e) { notify("error", e.message); } };
   const switchDomain = async (d) => {
     try { await call(`/domain/${d}`, { method: "POST" }); setMessages([]); setSelected(null); await loadMeta(); await refresh(); }
     catch { notify("error", "Could not switch organisation."); }
@@ -117,7 +124,8 @@ export default function App() {
         </main>
       </div>
       <Toasts items={toasts} onDismiss={(k) => setToasts((t) => t.filter((x) => x.key !== k))} onReview={(id) => { goDecision(id); }} />
-      {drawer && <ChatDrawer domain={domain} messages={messages} working={working} onSend={sendRequest} onRun={runScenario} onClose={() => setDrawer(false)} />}
+      {drawer && <ChatDrawer domain={domain} messages={messages} working={working} onSend={sendRequest} onRun={runScenario} onClose={() => setDrawer(false)}
+                                activity={activity} mode={agentMode} onMode={changeMode} tab={tab} setTab={setTab} />}
       {overlay?.kind === "sheet" && <ApprovalSheet id={overlay.id} onClose={() => setOverlay(null)} onChanged={refresh} notify={notify} onDiff={(d) => setOverlay({ kind: "diff", d })} />}
       {overlay?.kind === "diff" && <DiffOverlay d={overlay.d} onClose={() => setOverlay(null)} />}
       {overlay?.kind === "shadow" && <ShadowOverlay sid={overlay.sid} onClose={() => setOverlay(null)} notify={notify} onChanged={refresh} />}
