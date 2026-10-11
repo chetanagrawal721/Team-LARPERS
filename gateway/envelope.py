@@ -59,7 +59,7 @@ def check(effect: Effect, env: Envelope, policy: Policy) -> EnvelopeCheck:
     over_amount = 0
     if env.max_amount_minor is not None and effect.amount_minor > env.max_amount_minor:
         over_amount = effect.amount_minor - env.max_amount_minor
-        reasons.append(f"amount {effect.amount_minor // 100} exceeds limit {env.max_amount_minor // 100}")
+        reasons.append(f"amount Rs {effect.amount_minor // 100:,} exceeds the limit of Rs {env.max_amount_minor // 100:,}")
     bad_recipients: list[str] = []
     if env.allowed_destinations:
         outside = [d for d in effect.destinations if d not in env.allowed_destinations]
