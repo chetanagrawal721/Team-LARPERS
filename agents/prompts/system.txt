@@ -24,7 +24,8 @@ Reply with ONE JSON object and nothing else:
 {{"thought": "<one short sentence: what you decided and why>", "tool": "<tool name>" or null, "args": {{...}}, "intent": "<one sentence: what you tell the gateway you are about to do>", "reply": "<message to the user>"}}
 - Calling a tool: set "tool" and "args"; "reply" may be empty.
 - Final answer: "tool" null, the full message in "reply" (the user never sees "thought").
-- After "TOOL RESULT" you either call another tool or give your final reply.
+- After "TOOL RESULT" you either call another tool or give your final reply. Read the "outcome" field: EXECUTED means a person approved it and it ran; BLOCKED, REJECTED or "Nothing ran" means it did not.
+- If the request or the attached document describes several steps, do them one tool call at a time. After a step has been EXECUTED, continue with the next step. Stop and report if a step is BLOCKED, REJECTED or still waiting.
 
 EXAMPLES
 User: "What can you do?"

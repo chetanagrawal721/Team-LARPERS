@@ -250,7 +250,7 @@ def test_falls_back_to_the_next_provider_when_the_first_keeps_failing(monkeypatc
         text, meta = llm.chat_ex([{"role": "user", "content": "x"}])
     finally:
         llm.TRANSPORT = None
-    assert meta["provider"] == "ollama" and meta["fell_back"] and sum("openrouter" in c for c in calls) == 3
+    assert meta["provider"] == "ollama" and meta["fell_back"] and sum("openrouter" in c for c in calls) == len(llm.BACKOFF) + 1
 
 
 def test_no_scripted_fallback_exists():
@@ -304,3 +304,23 @@ def test_every_tool_and_agent_in_the_spec_matches_the_policy(client):
         pol = yaml.safe_load(open(f"gateway/policy/{domain}.yaml", encoding="utf-8"))
         for t in tools:
             assert t["action"] in pol["agents"][t["agent"]]["actions"], t["name"]
+
+
+def test_a_malformed_reply_is_retried_with_a_different_sample(monkeypatch):
+    monkeypatch.setenv("AI_PROVIDER", "gemini")
+    monkeypatch.setenv("AI_FALLBACK", "")
+    monkeypatch.setattr(llm, "SLEEP", lambda s: None)
+    temps = []
+
+    def handler(request):
+        body = json.loads(request.content)
+        temps.append(body["generationConfig"]["temperature"])
+        if len(temps) < 3:                        # the model returns no usable text at low temperatures
+            return httpx.Response(200, json={"candidates": [{"finishReason": "MALFORMED_RESPONSE"}]})
+        return httpx.Response(200, json={"candidates": [{"content": {"parts": [{"text": '{"ok": true}'}]}}]})
+    llm.TRANSPORT = httpx.MockTransport(handler)
+    try:
+        text, meta = llm.chat_ex([{"role": "user", "content": "x"}])
+    finally:
+        llm.TRANSPORT = None
+    assert json.loads(text) == {"ok": True} and meta["provider"] == "gemini" and temps == [0.0, 0.3, 0.6]

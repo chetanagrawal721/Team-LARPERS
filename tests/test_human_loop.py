@@ -102,9 +102,9 @@ def test_the_live_app_requires_a_person_but_library_engines_do_not(client, tmp_p
 def test_attack_library_is_long_and_realistic():
     import yaml
     attacks = yaml.safe_load(open("lab/attacks.yaml", encoding="utf-8"))
-    assert len(attacks) >= 3
+    assert len(attacks) >= 8
     for a in attacks:
-        assert len(a["attachment"]) > 900 and len(a["request"]) < 300, a["id"]          # short ask, long document
+        assert len(a["attachment"]) > 1300 and len(a["request"]) < 300, a["id"]          # short ask, long document
         assert a["domain"] in ("bank", "hospital", "shop") and a["goal"] and a["expected"]
 
 
@@ -116,7 +116,7 @@ def test_attack_endpoints_list_and_run_through_the_live_agent(client, monkeypatc
     monkeypatch.setattr("gateway.main.subprocess.Popen",
                         lambda args, cwd, env: captured.update(args=args) or type("P", (), {"pid": 1})())
     lst = client.get("/attacks").json()
-    assert [a["id"] for a in lst][:2] == ["duplicate-batch", "referral-register"]
+    assert [a["id"] for a in lst][0] == "duplicate-batch" and "two-agent-relay" in [a["id"] for a in lst]
     r = client.post("/attacks/duplicate-batch/run").json()
     assert r["attack"] == "duplicate-batch" and r["run"].startswith("run-") and "--auto-access" in captured["args"]
     assert "--attachment-file" in captured["args"] and "--run-id" in captured["args"]

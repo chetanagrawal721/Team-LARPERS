@@ -14,7 +14,8 @@ TRANSPORT: httpx.BaseTransport | None = None      # tests inject httpx.MockTrans
 SLEEP = time.sleep                                 # tests replace this so retries do not wait
 PROVIDERS = ("openrouter", "gemini", "ollama")
 RETRYABLE = {408, 425, 429, 500, 502, 503, 504}
-BACKOFF = (1.5, 4.0)                               # waits before retry 2 and 3
+TEMPS = (0.0, 0.3, 0.6, 0.8, 0.8, 1.0, 1.0)         # a deterministic failure (e.g. a malformed reply) needs a different sample on retry
+BACKOFF = (1.5, 3.0, 5.0, 8.0, 10.0, 12.0)         # waits between up to 7 attempts on one provider before moving on
 
 
 class LLMError(Exception):
@@ -52,12 +53,12 @@ def model_for(provider: str) -> str:
     return os.environ.get("OLLAMA_MODEL", "llama3:8b") if provider == "ollama" else ""
 
 
-def _call(provider: str, messages: list[dict], timeout: float) -> str:
+def _call(provider: str, messages: list[dict], timeout: float, temperature: float = 0.0) -> str:
     model, key = model_for(provider), os.environ.get("AI_API_KEY", "")
     with httpx.Client(timeout=timeout, transport=TRANSPORT) as c:
         if provider == "openrouter":
             r = c.post("https://openrouter.ai/api/v1/chat/completions", headers={"Authorization": f"Bearer {key}"},
-                       json={"model": model or "meta-llama/llama-3.1-8b-instruct", "messages": messages, "temperature": 0})
+                       json={"model": model or "meta-llama/llama-3.1-8b-instruct", "messages": messages, "temperature": temperature})
             r.raise_for_status()
             return r.json()["choices"][0]["message"]["content"]
         if provider == "gemini":
@@ -67,7 +68,7 @@ def _call(provider: str, messages: list[dict], timeout: float) -> str:
             r = c.post(f"https://generativelanguage.googleapis.com/v1beta/models/{model or 'gemini-3.5-flash-lite'}:generateContent",
                        headers={"x-goog-api-key": key},
                        json={"systemInstruction": {"parts": [{"text": system}]}, "contents": contents,
-                             "generationConfig": {"temperature": 0, "responseMimeType": "application/json"}})
+                             "generationConfig": {"temperature": temperature, "responseMimeType": "application/json"}})
             r.raise_for_status()
             cand = r.json()["candidates"][0]
             text = "".join(part.get("text", "") for part in cand.get("content", {}).get("parts", []))
@@ -76,7 +77,7 @@ def _call(provider: str, messages: list[dict], timeout: float) -> str:
             return text
         r = c.post(os.environ.get("OLLAMA_URL", "http://localhost:11434") + "/api/chat",
                    json={"model": model or "llama3:8b", "messages": messages, "stream": False, "format": "json",
-                         "options": {"temperature": 0, "num_ctx": 8192}})
+                         "options": {"temperature": temperature, "num_ctx": 8192}})
         r.raise_for_status()
         return r.json()["message"]["content"]
 
@@ -93,7 +94,7 @@ def chat_ex(messages: list[dict], timeout: float | None = None, report=None) -> 
         t_out = max(base, 180.0) if provider == "ollama" else base          # a local model may need time to load
         for attempt in range(1, len(BACKOFF) + 2):
             try:
-                text = _call(provider, messages, t_out)
+                text = _call(provider, messages, t_out, TEMPS[min(attempt - 1, len(TEMPS) - 1)])
                 if not isinstance(text, str) or not text.strip():
                     raise ValueError("empty answer")
                 return text, {"provider": provider, "model": model_for(provider) or provider, "attempt": attempt,
@@ -104,7 +105,7 @@ def chat_ex(messages: list[dict], timeout: float | None = None, report=None) -> 
                 code = e.response.status_code
                 why, retry = f"HTTP {code}", code in RETRYABLE
             except (KeyError, IndexError, ValueError, TypeError) as e:
-                why, retry = f"unusable reply ({type(e).__name__})", False       # retrying the same call gives the same shape
+                why, retry = f"unusable reply ({e})"[:90], attempt < 4          # retried with a different sample, a few times only
             except httpx.HTTPError as e:
                 why, retry = f"{type(e).__name__}", True
             errors.append(f"{provider}: {why} (attempt {attempt})")

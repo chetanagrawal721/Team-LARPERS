@@ -28,12 +28,12 @@ class Agent:
 
     # ---- transport ------------------------------------------------------------------
     def propose(self, action: str, args: dict, intent: str = "", user_instruction: str = "",
-                on_behalf_of: str = "") -> dict:
+                on_behalf_of: str = "", run: str = "") -> dict:
         body = {"agent": self.name, "action": action, "args": args, "intent": intent,
                 "user_instruction": user_instruction, "on_behalf_of": on_behalf_of,
                 "nonce": uuid.uuid4().hex, "ts": int(time.time())}
         body["sig"] = sign(self.key, body)
-        r = self.client.post("/propose", json=body)
+        r = self.client.post("/propose", json=body, headers={"X-Run": run} if run else None)
         r.raise_for_status()
         return r.json()
 

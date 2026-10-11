@@ -71,6 +71,14 @@ def summarise(d: dict) -> dict:
         out["safe_version"] = d["safe_version"]["description"]
     if d["status"] in ("pending", "approved"):
         out["needs_human_approvals"] = d.get("approvals_needed")
+    # say plainly what finally happened, so the model does not mistake an executed action for a held one
+    out["outcome"] = {"done": "A person approved it and it was EXECUTED on the real data (approved by %s)." % ", ".join(d.get("approvals") or ["a person"]),
+                      "rejected": "A person REJECTED it. Nothing ran.", "void": "The seal broke because the data changed. Nothing ran.",
+                      "blocked": "BLOCKED by the gateway. Nothing ran. It cannot be overridden.",
+                      "pending": "Still waiting for a person to approve. Nothing has run yet.",
+                      "approved": "Approved but not yet executed.", "shadow": "Held in a sandbox for review. Nothing ran on real data."}.get(d["status"], d["status"])
+    if d["status"] == "done":
+        out["verdict"] = "EXECUTED"
     return out
 
 
@@ -135,7 +143,7 @@ def call_tool(run: Run, tool: dict, args: dict, intent: str, client, auto_access
     agent = Agent(tool["agent"], client=client, wait_seconds=0)
     run.step("tool_call", f"{tool['name']}({', '.join(f'{k}={v!r}' for k, v in clean.items())})",
              tool=tool["name"], agent=tool["agent"], action=tool["action"], args=clean, intent=intent)
-    d = agent.propose(tool["action"], clean, intent=intent, user_instruction=run.text, on_behalf_of=tool.get("on_behalf_of", ""))
+    d = agent.propose(tool["action"], clean, intent=intent, user_instruction=run.text, on_behalf_of=tool.get("on_behalf_of", ""), run=run.id)
     run.step("tool_result", f"Gateway: {d['verdict']} ({d['rule']}): {d['reason']}", decision=d["id"], verdict=d["verdict"], status=d["status"])
     d = wait_for_human(run, d, client)
     return d, summarise(d)
