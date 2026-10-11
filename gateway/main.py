@@ -2,7 +2,7 @@ from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import ValidationError
 
-from . import approvals, audit, outbox
+from . import ai, approvals, audit, outbox
 from .approvals import GateError
 from .engine import Engine
 from .schemas import ApprovalRequest
@@ -105,3 +105,15 @@ def audit_verify():
 @app.post("/policy/reload")
 def policy_reload():
     return {"policy_hash": engine().reload_policy()}
+
+
+@app.post("/ai/toggle")
+def ai_toggle(enabled: bool | None = None):
+    new = (not ai.enabled()) if enabled is None else enabled
+    ai.set_enabled(new)
+    return {"enabled": ai.enabled(), "provider": ai.provider()}
+
+
+@app.get("/ai/status")
+def ai_status():
+    return {"enabled": ai.enabled(), "provider": ai.provider(), "available": ai.available()}
