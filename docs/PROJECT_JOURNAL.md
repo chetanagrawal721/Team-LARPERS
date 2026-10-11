@@ -321,6 +321,7 @@ One line per milestone push, decision, or notable event. Newest at the bottom.
 | 2026-10-11 14:35 | Kanak-Agrawal-3008 | Milestone | M8.4 — the Attack Lab page with live ablation results and the AI toggle have been implemented. | |
 | 2026-10-11 14:40 | atharvg44 | Milestone | M9.2 — end-to-end integration has been verified (210 tests passing locally and on a fresh clone). | |
 | 2026-10-11 14:40 | aryanketkar-15 | Milestone | M9.3 — the release README, reset script and journal results have been written; rehearsal is pending. | |
+| 2026-10-11 22:10 | atharvg44 | Change | The team has added sandbox popup animations, an activity trail, an attack-lab grid with a two-agent relay attack, and retries of malformed Gemini replies (252 tests passing). | |
 
 **Entry types:** Decision · Design · Review · Milestone · Fix · Change · Test · Result · Docs
 

@@ -418,3 +418,23 @@
 **Last-moment changes:** yes (event contract: `access` event type; journal section 11)
 **Suggested commit message:** Agent: live agents with access requests, human gates, validation, live attacks
 **Known issues:** Whether a model is fooled by an attack varies by model and run; free tiers can be rate limited, in which case the client retries and falls back to local Ollama.
+
+### [UI] Sandbox popup, activity trail, attack grid and Gemini retries — 2026-10-11 22:10 IST — Owner: Kanak-Agrawal-3008
+**What has changed:** The acting user is now chosen only from the top-right user menu (the 'Acting as' selector has been removed from the cards and the approval sheet). Every sandbox run opens briefly as a popup in which each row is checked one at a time and coloured green (inside what was asked) or red (outside), a verdict stamp appears, the popup closes by itself and the result is shown; past runs can be replayed. The chat drawer now only takes a prompt (and an optional pasted document); the live pipeline has moved to a new Agent Activity page that shows a slower, checkpoint-style trail in the manner of the audit log. Access requests open as a modal. The Attack Lab is a grid of cards with a detail dialog. The attack library has more, longer cases, including a two-agent relay in which one agent saves a file and a second agent sends it on (the sandbox sees the PII label and blocks it, R05). Events carry a run id so one job can be followed across agents.
+**Why:** The team has asked for fewer controls on the cards, a more visible and more interactive sandbox, an uncrowded chat, a clearer log, and a demonstration of one agent acting through another.
+**How:** `SandboxPopup.jsx`, `AccessModal.jsx`, `AgentActivity.jsx`, `useUser.js`; CSS keyframes for the row, stamp and trail animations. The gateway adds `X-Run` and `run` on pipeline and sandbox events; transfers are scoped by vendor in the envelope.
+**Tests:** see the agent entry below.
+**Deviations from plan:** Frontend has no automated tests.
+**Last-moment changes:** no
+**Suggested commit message:** UI: sandbox popup, activity trail, attack grid, access modal
+**Known issues:** None known.
+
+### [Agent] Gemini retry until it answers — 2026-10-11 22:10 IST — Owner: atharvg44
+**What has changed:** The model client has treated an empty or malformed Gemini reply (finishReason MALFORMED_RESPONSE, no text) as retryable. The same provider is tried up to four times, each time with a higher sampling temperature (a temperature-0 call fails the same way every time), and each retry is reported in the live log. The next provider (Ollama) is used only after those attempts. The system prompt has gained an 'outcome' field description and a rule for multi-step jobs; the summary has carried the run id and an EXECUTED verdict.
+**Why:** Gemini has intermittently returned no text on the turn that follows a tool result, which previously caused an early switch to the local model.
+**How:** `agents/llm.py` `TEMPS` and `_call(..., temperature)`; shape errors retry while the attempt count is below four.
+**Tests:** `pytest -q` reports 252 passed, including a new test in which two malformed replies are followed by a good one from the same provider.
+**Deviations from plan:** none
+**Last-moment changes:** no
+**Suggested commit message:** Agent: retry malformed model replies before falling back
+**Known issues:** Free-tier quotas can still be exhausted, in which case the fallback applies.
