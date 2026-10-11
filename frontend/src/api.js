@@ -6,10 +6,10 @@ const DEMO_TOKENS = (() => {
 })();
 
 export const USERS = [
-  { id: "priya", label: "Priya · ops officer" },
-  { id: "rahul", label: "Rahul · branch manager" },
-  { id: "anita", label: "Anita · compliance" },
-  { id: "meera", label: "Meera · staff (cannot approve)" },
+  { id: "priya", name: "Priya Nair", role: "Ops Officer", can: true },
+  { id: "rahul", name: "Rahul Deshmukh", role: "Branch Manager", can: true },
+  { id: "anita", name: "Anita Kulkarni", role: "Compliance", can: true },
+  { id: "meera", name: "Meera Joshi", role: "Staff (cannot approve)", can: false },
 ];
 
 let current = { name: "priya", token: DEMO_TOKENS["priya"] || "" };
@@ -103,3 +103,18 @@ export const STATUS_TEXT = {
   allowed: "Allowed", done: "Executed", pending: "Waiting for approval", approved: "Approved and sealed",
   blocked: "Blocked", void: "Voided", rejected: "Rejected", shadow: "Held in sandbox",
 };
+
+// ---- helpers used by the dashboard screens ----
+export const stateOf = (d) => d.status === "void" ? "VOID" : d.status === "shadow" ? "SHADOW" : d.verdict;
+export const PILL = { ALLOW: "pill-allow", HOLD: "pill-hold", BLOCK: "pill-block", VOID: "pill-block", SHADOW: "pill-shadow", DONE: "pill-allow" };
+export const clock = (ts) => new Date(ts * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+export const AGENT_LABEL = (a = "") => a.split("-").map((w) => w[0]?.toUpperCase() + w.slice(1)).join("-");
+export const ACTION_LABEL = { refund: "Refund", transfer: "Transfer batch", update_contact: "Update contact", payee_change: "Change payee", grant_role: "Grant role",
+  send_report: "Share report", delete_record: "Delete record", write_file: "Save file", send_email: "Send email", lookup: "Look up record" };
+export const summaryOf = (d) => {
+  const e = d.effect; if (!e) return "";
+  const { table, rows } = primary(e);
+  return `${num(rows.length)} ${unitOf(table)}${rows.length === 1 ? "" : "s"}`;
+};
+export const pathLabel = (p) => p === "rules+ai" ? "rules + AI" : p === "fallback" ? "rules only (AI off)" : "rules only";
+export const ROLE_LABEL = (r = "") => r.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
