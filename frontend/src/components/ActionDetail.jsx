@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Icon from "./Icon";
-import { ACTION_LABEL, AGENT_LABEL, PILL, call, distinctPeople, num, pathLabel, plural, primary, rowCount, rupees, scopeSentence, stateOf, tidy, unitOf } from "../api";
+import { ACTION_LABEL, AGENT_LABEL, PILL, USERS, call, eligibleApprovers, getUser, setUser, distinctPeople, num, pathLabel, plural, primary, rowCount, rupees, scopeSentence, stateOf, tidy, unitOf } from "../api";
 
 const Stage = ({ n, title, children, bad }) => (
   <div className={`rounded-lg border p-3.5 min-w-0 ${bad ? "border-[#fecaca] bg-[#fff8f8]" : "border-[#e3e8ef] bg-white"}`}>
@@ -22,6 +22,9 @@ export function explainOf(d) {
 
 export default function ActionDetail({ d, onSheet, onDiff, onShadow, onChanged, notify }) {
   const [busy, setBusy] = useState("");
+  const [requester, setRequester] = useState("");
+  const [me, setMe] = useState(getUser().name);
+  useEffect(() => { call(`/sheet/${d.id}`).then((s) => setRequester(s.requester)).catch(() => {}); }, [d.id]);
   const act = async (label, fn) => {
     setBusy(label);
     try { const out = await fn(); onChanged && onChanged(out); } catch (e) { notify("error", `${label}: ${e.message}`); } finally { setBusy(""); }
@@ -32,6 +35,12 @@ export default function ActionDetail({ d, onSheet, onDiff, onShadow, onChanged, 
   const people = distinctPeople(e);
   const outside = chk && !chk.inside;
   const v = stateOf(d);
+  const pendingHuman = d.verdict === "HOLD" && d.status === "pending";
+  const meInfo = USERS.find((u) => u.id === me);
+  const blockedWhy = !meInfo?.can ? `${meInfo?.name} cannot approve. Choose another person under "Acting as".`
+    : me === requester ? `${meInfo.name} is the requester and cannot approve their own request. Choose another person under "Acting as".`
+    : d.approvals.includes(me) ? `${meInfo.name} has already approved this.` : "";
+  const canApproveNow = !blockedWhy;
   const sealed = d.status === "approved", voided = d.status === "void", done = d.status === "done";
   const drift = (d.reason || "").match(/\((\d[\d,]*) -> (\d[\d,]*) rows\)/);
 
@@ -71,7 +80,7 @@ export default function ActionDetail({ d, onSheet, onDiff, onShadow, onChanged, 
         </Stage>
         <Stage n="3" title="Real (execution)" bad={voided}>
           {voided ? <div className="text-[13px] text-[#b91c1c]"><b>Seal broken</b><br />{(d.drift || "changed").replace("_", " ")}{drift ? `: ${drift[1]} to ${drift[2]} rows` : ""}<br />Nothing ran.</div>
-            : done ? <div className="text-[13px] text-[#15803d]"><b>{plural(rowCount(e), "row")} changed</b><br />Matches the sandbox.</div>
+            : done ? <div className="text-[13px] text-[#15803d]">{rowCount(e) > 0 ? <><b>{plural(rowCount(e), "row")} changed</b><br />Matches the sandbox.</> : <><b>No records matched</b><br />Nothing was changed.</>}</div>
             : sealed ? <div className="text-[13px] text-[#1d4ed8]"><b>Sealed</b><br />Ready to run.</div>
             : d.status === "shadow" ? <div className="text-[13px] text-[#6d28d9]"><b>Sandboxed</b><br />Real data untouched.</div>
             : <span className="text-[13px] text-[#64748b]">Not run</span>}
@@ -91,14 +100,34 @@ export default function ActionDetail({ d, onSheet, onDiff, onShadow, onChanged, 
 
       <p className="text-[13px] text-[#334155]"><b>Reason:</b> {d.status === "approved" ? `Approved by ${d.approvals.join(" and ")}. It runs only if nothing has changed since.` : d.status === "shadow" ? "Held because the request is built from untrusted content. This agent's further work stays in a sandbox until a person reviews it." : explainOf(d)}</p>
 
+      {pendingHuman && (
+        <div className="rounded-lg border border-[#fde68a] bg-[#fffbeb] px-4 py-3 text-[13px]">
+          <b>A person must decide.</b> Nothing has run. {d.approvals.length} of {Math.max(d.approvals_needed, 1)} approvals so far{d.approvals.length ? ` (${d.approvals.join(", ")})` : ""}.
+          {requester && <> The request was made for <b>{requester}</b>, who cannot approve it. Eligible approvers: <b>{eligibleApprovers(requester, d.approvals).map((u) => u.name.split(" ")[0]).join(", ") || "nobody left"}</b>.</>}
+        </div>
+      )}
+      {d.verdict === "BLOCK" && d.status === "blocked" && (
+        <div className="rounded-lg border border-[#fecaca] bg-[#fff8f8] px-4 py-3 text-[13px]">
+          <b>Blocked, nothing ran.</b> A person can review and acknowledge this; a block is never overridden.{d.reviewed_by?.length > 0 && <> Reviewed by <b>{d.reviewed_by.join(", ")}</b>.</>}
+        </div>
+      )}
+
       <div className="flex flex-wrap items-center gap-2">
+        {pendingHuman && <button className="btn btn-primary" disabled={!!busy || !canApproveNow} title={blockedWhy} onClick={() => act("Approve", () => call("/approve", { method: "POST", body: { decision_id: d.id }, auth: true }))}>Approve this effect</button>}
+        {pendingHuman && <button className="btn btn-danger" disabled={!!busy || !canApproveNow} title={blockedWhy} onClick={() => act("Reject", () => call("/reject", { method: "POST", body: { decision_id: d.id }, auth: true }))}>Reject</button>}
+        {d.verdict === "BLOCK" && d.status === "blocked" && <button className="btn btn-primary" disabled={!!busy || !!(d.reviewed_by || []).includes(me)} onClick={() => act("Review", () => call(`/acknowledge/${d.id}`, { method: "POST", auth: true }))}>{(d.reviewed_by || []).includes(me) ? "Reviewed" : "Mark as reviewed"}</button>}
         {d.safe_version && ["blocked", "pending"].includes(d.status) &&
-          <button className="btn btn-primary" disabled={!!busy} onClick={() => act("Safe version", () => call(`/safe-version/${d.id}`, { method: "POST", auth: true }))}>Smallest safe version</button>}
+          <button className="btn" disabled={!!busy} onClick={() => act("Safe version", () => call(`/safe-version/${d.id}`, { method: "POST", auth: true }))}>Use smallest safe version</button>}
         {sealed && <button className="btn btn-primary" disabled={!!busy} onClick={() => act("Execute", () => call(`/execute/${d.id}`, { method: "POST", auth: true }))}>Execute sealed action</button>}
         {d.action === "transfer" && sealed && <button className="btn" disabled={!!busy} onClick={() => act("Insert invoices", async () => { const r = await call("/demo/insert-invoices", { method: "POST" }); notify("ok", `${num(r.inserted)} matching invoices were added to the database.`); return r; })}>Add 3,960 matching invoices</button>}
         {d.shadow_session && <button className="btn" onClick={() => onShadow(d.shadow_session)}>Review sandbox work</button>}
-        <button className="btn" onClick={() => onDiff(d)}>View diff</button>
-        <button className={`btn ${d.verdict === "HOLD" && d.status === "pending" ? "btn-primary" : ""}`} onClick={() => onSheet(d.id)}>Review</button>
+        <button className="btn btn-quiet" onClick={() => onDiff(d)}>View diff</button>
+        <button className="btn btn-quiet" onClick={() => onSheet(d.id)}>Full review</button>
+        <label className="ml-auto flex items-center gap-1.5 text-[12px] text-[#64748b]">Acting as
+          <select className="field !w-auto !py-1" value={me} onChange={(e) => { setUser(e.target.value); setMe(e.target.value); }} aria-label="Acting as">
+            {USERS.map((u) => <option key={u.id} value={u.id}>{u.name} · {u.role}</option>)}
+          </select>
+        </label>
       </div>
 
       <div className="pt-3 border-t border-[#eef1f6] text-[12px] text-[#64748b] flex flex-wrap gap-x-4 gap-y-1">

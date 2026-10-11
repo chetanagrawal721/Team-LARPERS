@@ -30,6 +30,8 @@ export default function App() {
   const [working, setWorking] = useState(false);
   const [activity, setActivity] = useState([]);   // live feed: agent steps, gateway pipeline lines, sandbox rows
   const [agentMode, setAgentMode] = useState(null);
+  const [access, setAccess] = useState([]);       // agents asking a person for access (newest last)
+  const [draft, setDraft] = useState("");
   const [tab, setTab] = useState("chat");
   const [tick, setTick] = useState(0);            // bumps whenever the log changes, so open pages reload
   const seen = useRef(new Set());
@@ -61,8 +63,16 @@ export default function App() {
     if (e.type === "chat") {
       const i = e.data.from === "user" ? pendingUser.current.indexOf(e.data.text) : -1;
       if (i >= 0) { pendingUser.current.splice(i, 1); return; }
-      setMessages((m) => [...m, e.data]);
+      setMessages((m) => [...m, { ...e.data, t: e.ts }]);
       if (e.data.from !== "user") { setWorking(false); clearTimeout(workTimer.current); }
+    }
+    if (e.type === "access") {
+      setAccess((list) => (list.some((a) => a.id === e.data.id) ? list.map((a) => (a.id === e.data.id ? e.data : a)) : [...list, e.data]));
+      if (e.data.status === "pending") {
+        setWorking(false);
+        notify("access", `${e.data.agent_name || e.data.agent} wants to run ${e.data.tool}. Nothing happens until you grant access.`, { open: true });
+      }
+      return;
     }
     if (["agent", "pipeline", "sandbox"].includes(e.type)) { setActivity((a) => [...a.slice(-700), e]); return; }
     if (e.type === "domain") { loadMeta(); refresh(); }
@@ -78,20 +88,19 @@ export default function App() {
   const online = useEvents(onEvent);
 
   const startWork = () => { setWorking(true); clearTimeout(workTimer.current); workTimer.current = setTimeout(() => setWorking(false), 60000); };
-  const sendRequest = async (text) => {
+  const sendRequest = async (text, attachment = "") => {
     pendingUser.current.push(text);
-    setMessages((m) => [...m, { from: "user", text }]);
-    if (tab !== "chat" && tab !== "prompts" && tab !== "agents") setTab("activity");
+    setMessages((m) => [...m, { from: "user", text, attachment, t: Date.now() / 1000 }]);
+    setTab("chat");
     startWork();
-    try { await call("/demo/chat", { method: "POST", body: { text } }); }
+    try { await call("/demo/chat", { method: "POST", body: { text, attachment } }); }
     catch (e) { setWorking(false); setMessages((m) => [...m, { from: "gate", text: `The request could not be sent: ${e.message}. Check that the gateway is running.` }]); }
   };
-  const runScenario = async (name) => {
-    startWork();
-    try { await call(`/demo/${name}`, { method: "POST" }); }
-    catch (e) { setWorking(false); setMessages((m) => [...m, { from: "gate", text: `The scenario could not be started: ${e.message}.` }]); }
+  const decideAccess = async (id, verdict) => {
+    try { await call(`/agent/access/${id}/${verdict}`, { method: "POST", auth: true }); startWork(); }
+    catch (e) { notify("error", `Could not ${verdict === "grant" ? "grant" : "deny"} access: ${e.message}`); }
   };
-  const changeMode = async (m) => { try { setAgentMode(await call("/agent/mode", { method: "POST", body: { mode: m } })); } catch (e) { notify("error", e.message); } };
+  const openChat = (t = "chat") => { setTab(t); setDrawer(true); };
   const switchDomain = async (d) => {
     try { await call(`/domain/${d}`, { method: "POST" }); setMessages([]); setSelected(null); await loadMeta(); await refresh(); }
     catch { notify("error", "Could not switch organisation."); }
@@ -114,18 +123,19 @@ export default function App() {
                 waitingList={waitingList} onOpenWaiting={(d) => { goDecision(d.id); setOverlay({ kind: "sheet", id: d.id }); }} menuOpen={orgMenu} setMenuOpen={setOrgMenu} />
         {(offline || !online) && <div className="bg-[#fef2f2] border-b border-[#fecaca] text-[#b91c1c] text-center py-1.5 text-[13px]" role="alert">Cannot reach the gateway. Start it with ./run.sh and this page will reconnect on its own.</div>}
         <main className="flex-1 min-h-0">
-          {page === "gate" && <LiveGate decisions={decisions} selectedId={selected} onSelect={setSelected} onAsk={() => setDrawer(true)}
+          {page === "gate" && <LiveGate decisions={decisions} selectedId={selected} onSelect={setSelected} onAsk={() => openChat("chat")}
                                         onSheet={(id) => setOverlay({ kind: "sheet", id })} onDiff={(d) => setOverlay({ kind: "diff", d })}
                                         onShadow={(sid) => setOverlay({ kind: "shadow", sid })} {...common} />}
-          {page === "lab" && <AttackLab />}
+          {page === "lab" && <AttackLab activity={activity} onWatch={() => openChat("activity")} notify={notify} />}
           {page === "audit" && <AuditPage refreshKey={tick} />}
           {page === "policy" && <PolicyPage domain={domain} onSwitchOrg={() => setOrgMenu(true)} />}
-          {page === "agents" && <AgentsPage refreshKey={tick} notify={notify} />}
+          {page === "agents" && <AgentsPage refreshKey={tick} notify={notify} access={access} />}
         </main>
       </div>
-      <Toasts items={toasts} onDismiss={(k) => setToasts((t) => t.filter((x) => x.key !== k))} onReview={(id) => { goDecision(id); }} />
-      {drawer && <ChatDrawer domain={domain} messages={messages} working={working} onSend={sendRequest} onRun={runScenario} onClose={() => setDrawer(false)}
-                                activity={activity} mode={agentMode} onMode={changeMode} tab={tab} setTab={setTab} />}
+      <Toasts items={toasts} onDismiss={(k) => setToasts((t) => t.filter((x) => x.key !== k))} onReview={(id) => { goDecision(id); }} onOpenChat={() => openChat("chat")} />
+      {drawer && <ChatDrawer domain={domain} messages={messages} working={working} onSend={sendRequest} onClose={() => setDrawer(false)}
+                                activity={activity} mode={agentMode} tab={tab} setTab={setTab} access={access.filter((a) => !a.domain || true)}
+                                onGrant={(id) => decideAccess(id, "grant")} onDeny={(id) => decideAccess(id, "deny")} draft={draft} setDraft={setDraft} />}
       {overlay?.kind === "sheet" && <ApprovalSheet id={overlay.id} onClose={() => setOverlay(null)} onChanged={refresh} notify={notify} onDiff={(d) => setOverlay({ kind: "diff", d })} />}
       {overlay?.kind === "diff" && <DiffOverlay d={overlay.d} onClose={() => setOverlay(null)} />}
       {overlay?.kind === "shadow" && <ShadowOverlay sid={overlay.sid} onClose={() => setOverlay(null)} notify={notify} onChanged={refresh} />}

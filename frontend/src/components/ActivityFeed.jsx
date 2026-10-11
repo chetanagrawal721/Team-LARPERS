@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import Icon from "./Icon";
 import { rupees } from "../api";
 
-const COLOR = { ok: "bg-[#16a34a]", denied: "bg-[#dc2626]", warn: "bg-[#d97706]", info: "bg-[#94a3b8]", error: "bg-[#dc2626]", agent: "bg-[#2563eb]", model: "bg-[#7c3aed]" };
+const COLOR = { ok: "bg-[#16a34a]", denied: "bg-[#dc2626]", warn: "bg-[#d97706]", info: "bg-[#94a3b8]", error: "bg-[#dc2626]", agent: "bg-[#2563eb]", model: "bg-[#7c3aed]", human: "bg-[#0891b2]" };
 const t = (ts) => new Date((ts || Date.now() / 1000) * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 
 // The sandbox result, revealed line by line. Every row is judged against what was asked: approved (inside) or denied (outside).
@@ -41,18 +41,30 @@ function SandboxBlock({ ev }) {
   );
 }
 
-const LABEL = { start: "Request", llm_request: "Asking the model", llm_response: "Model replied", thought: "Thinking", tool_call: "Calling tool", tool_result: "Gateway answered", answer: "Replying", error: "Problem", fallback: "Fallback" };
+const LABEL = { start: "Request", llm_request: "Asking the model", llm_response: "Model replied", llm_notice: "Model service", thought: "Thinking", agent_active: "Agent",
+  access_wait: "Access", access_granted: "Access", access_denied: "Access", access_timeout: "Access", rejected_call: "Checked", tool_call: "Calling tool",
+  tool_result: "Gateway answered", waiting_human: "Waiting", decision_update: "Decision", answer: "Replying", error: "Problem" };
+
+function toneOf(ev) {
+  if (ev.type === "pipeline") return ev.data.status || "info";
+  const k = ev.data.kind;
+  if (k === "error" || k === "access_denied" || k === "access_timeout") return "error";
+  if (k === "llm_notice" || k === "rejected_call") return "warn";
+  if (k === "tool_result") return ev.data.data?.verdict === "ALLOW" ? "ok" : ev.data.data?.verdict === "HOLD" ? "warn" : "denied";
+  if (["access_wait", "access_granted", "waiting_human", "decision_update"].includes(k)) return "human";
+  if (["llm_request", "llm_response"].includes(k)) return "model";
+  return "agent";
+}
 
 function Line({ ev }) {
   if (ev.type === "sandbox") return <li className="pl-5"><SandboxBlock ev={ev} /></li>;
-  let tone = "info", head = "", text = ev.data.text || "";
-  if (ev.type === "pipeline") { tone = ev.data.status || "info"; head = "Gateway"; }
-  else { const k = ev.data.kind; tone = k === "error" ? "error" : k === "fallback" ? "warn" : k === "tool_result" ? (ev.data.data?.verdict === "ALLOW" ? "ok" : ev.data.data?.verdict ? "denied" : "info") : ["llm_request", "llm_response"].includes(k) ? "model" : "agent"; head = LABEL[k] || k; }
+  const tone = toneOf(ev);
+  const head = ev.type === "pipeline" ? "Gateway" : LABEL[ev.data.kind] || ev.data.kind;
   return (
     <li className="flex gap-2.5 py-1 text-[13px]">
       <span className={`w-2.5 h-2.5 rounded-full mt-1.5 shrink-0 ${COLOR[tone]}`} />
       <span className="text-[11px] text-[#94a3b8] w-[58px] shrink-0 pt-0.5">{t(ev.ts)}</span>
-      <span className="min-w-0"><span className="text-[11px] font-semibold uppercase tracking-wide text-[#64748b] mr-1.5">{head}</span><span className={tone === "denied" || tone === "error" ? "text-[#b91c1c]" : "text-[#334155]"}>{text}</span></span>
+      <span className="min-w-0"><span className="text-[11px] font-semibold uppercase tracking-wide text-[#64748b] mr-1.5">{head}</span><span className={tone === "denied" || tone === "error" ? "text-[#b91c1c]" : "text-[#334155]"}>{ev.data.text}</span></span>
     </li>
   );
 }
@@ -62,8 +74,8 @@ export default function ActivityFeed({ events, working }) {
   useEffect(() => { end.current?.scrollIntoView({ block: "end" }); }, [events.length, working]);
   return (
     <div className="flex-1 overflow-auto px-5 py-4" role="log" aria-live="polite">
-      {events.length === 0 && <p className="text-[13px] text-[#64748b]">Nothing yet. Send a request and every step appears here as it happens: the agent's thinking, the tool it calls, each check the gateway runs, and the sandbox result row by row.</p>}
-      <ul className="space-y-0.5">{events.map((e) => <Line key={e.id || e.ts + e.type + Math.random()} ev={e} />)}</ul>
+      {events.length === 0 && <p className="text-[13px] text-[#64748b]">Nothing yet. Send a request and every step appears here as it happens: the model's thinking, the access request, each check the gateway runs, and the sandbox result row by row.</p>}
+      <ul className="space-y-0.5">{events.filter((e) => !(e.type === "agent" && ["start", "llm_request"].includes(e.data.kind))).map((e, i) => <Line key={e.id || i} ev={e} />)}</ul>
       {working && <div className="text-[13px] text-[#64748b] flex items-center gap-2 mt-2"><Icon name="refresh" size={14} className="animate-spin" />Working…</div>}
       <div ref={end} />
     </div>

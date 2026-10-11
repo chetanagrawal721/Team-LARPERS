@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import Overlay from "../components/Overlay";
 import { call } from "../api";
+import LiveAttacks from "./LiveAttacks";
 
 const stopped = (o = "") => ["BLOCK", "HOLD", "REFUSED", "STRUCTURAL"].includes(o) || o.startsWith("VOID");
 const cls = (o = "") => o === "" ? "" : o.startsWith("FAIL") ? "pill-block" : stopped(o) ? (o === "HOLD" ? "pill-hold" : o === "STRUCTURAL" ? "pill-info" : "pill-block") : "pill-allow";
@@ -24,7 +25,7 @@ function AddCase({ onClose }) {
 }
 
 // Numbers are shown exactly as the gateway returns them: nothing here is hard-coded.
-export default function AttackLab() {
+function Benchmark() {
   const [suite, setSuite] = useState(null);
   const [res, setRes] = useState(null);
   const [running, setRunning] = useState(false);
@@ -46,7 +47,7 @@ export default function AttackLab() {
     <div className="p-6 space-y-5 h-full overflow-auto">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-[22px] font-semibold">Attack Lab</h1>
+          <h1 className="text-[22px] font-semibold">Benchmark suite</h1>
           <p className="text-[13px] text-[#64748b]">Evidence against baselines: {n ?? "…"} attacks, each with a harmless twin (the first 22 were pre-registered).</p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
@@ -96,6 +97,24 @@ export default function AttackLab() {
       </div>
       <p className="text-[12px] text-[#64748b]">Suite commit <code>{hash?.hash?.slice(0, 7) || "–"}</code>{hash?.time && ` · committed ${hash.time.slice(0, 16).replace("T", " ")}`}{res && ` · run ${res.ran_at} in ${res.seconds}s, AI checks ${res.ai === "live" ? "live" : "off"}`}. Known limits: {res?.known_limits?.join("; ") || "unmediated channels; paraphrased personal data is best-effort"}.</p>
       {add && <AddCase onClose={() => setAdd(false)} />}
+    </div>
+  );
+}
+
+
+export default function AttackLab({ activity, onWatch, notify }) {
+  const [tab, setTab] = useState("live");
+  return (
+    <div className="h-full flex flex-col">
+      <div className="px-6 pt-5">
+        <h1 className="text-[22px] font-semibold">Attack Lab</h1>
+        <div className="flex gap-6 border-b border-[#e3e8ef] mt-3" role="tablist">
+          {[["live", "Live attacks"], ["suite", "Benchmark suite"]].map(([id, l]) => <button key={id} role="tab" aria-selected={tab === id} className={`tab ${tab === id ? "tab-active" : ""}`} onClick={() => setTab(id)}>{l}</button>)}
+        </div>
+      </div>
+      <div className="flex-1 min-h-0 overflow-auto">
+        {tab === "live" ? <div className="p-6"><LiveAttacks activity={activity} onWatch={onWatch} notify={notify} /></div> : <Benchmark />}
+      </div>
     </div>
   );
 }

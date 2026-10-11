@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import Overlay from "./Overlay";
 import Icon from "./Icon";
-import { ACTION_LABEL, AGENT_LABEL, PILL, ROLE_LABEL, USERS, call, distinctPeople, getUser, num, pathLabel, plural, primary, rupees, stateOf, unitOf } from "../api";
+import { ACTION_LABEL, AGENT_LABEL, PILL, ROLE_LABEL, USERS, call, distinctPeople, eligibleApprovers, getUser, setUser, num, pathLabel, plural, primary, rupees, stateOf, unitOf } from "../api";
 import { explainOf } from "./ActionDetail";
 
 const DEST = { payment_rail: "Payment rail (money leaves the bank)", external_email: "External email address", internal_email: "Internal email address",
@@ -17,20 +17,23 @@ export default function ApprovalSheet({ id, onClose, onChanged, onDiff, notify }
   const [err, setErr] = useState("");
   const [now, setNow] = useState(Math.floor(Date.now() / 1000));
   const [busy, setBusy] = useState(false);
+  const [who, setWho] = useState(getUser().name);
   const load = () => call(`/sheet/${id}`).then(setS).catch((e) => setErr(e.message));
   useEffect(() => { load(); }, [id]);
   useEffect(() => { const t = setInterval(() => setNow(Math.floor(Date.now() / 1000)), 1000); return () => clearInterval(t); }, []);
   if (err) return <Overlay title="Approval sheet" onClose={onClose}><p className="text-[#b91c1c]">{err}</p></Overlay>;
   if (!s) return <Overlay title="Approval sheet" onClose={onClose}>Loading…</Overlay>;
 
-  const d = s.decision, e = d.effect, me = getUser().name, meInfo = USERS.find((u) => u.id === me);
+  const d = s.decision, e = d.effect, me = who, meInfo = USERS.find((u) => u.id === me);
   const { table, rows } = primary(e);
   const people = distinctPeople(e);
   const v = stateOf(d);
   const pending = d.verdict === "HOLD" && d.status === "pending";
   const isRequester = me === s.requester;
-  const why = !pending ? (d.status === "approved" ? "Already approved and sealed." : d.verdict === "BLOCK" ? "Blocked actions cannot be approved." : `Status: ${d.status}.`)
-    : isRequester ? "You cannot approve your own request." : !meInfo?.can ? "Your role cannot approve." : d.approvals.includes(me) ? "You have already approved this." : "";
+  const elig = eligibleApprovers(s.requester, d.approvals).map((u) => u.name.split(" ")[0]).join(", ");
+  const why = !pending ? (d.status === "approved" ? "Already approved and sealed. Use Execute on the Live Gate." : d.verdict === "BLOCK" ? "Blocked actions cannot be approved; a person can mark them as reviewed on the Live Gate." : `Status: ${d.status}.`)
+    : isRequester ? `${meInfo.name} is the requester and cannot approve their own request. Switch to ${elig || "another person"}.`
+    : !meInfo?.can ? `${meInfo?.name} cannot approve. Switch to ${elig || "another person"}.` : d.approvals.includes(me) ? `${meInfo.name} has already approved this.` : "";
   const run = async (label, fn) => {
     setBusy(true);
     try { const out = await fn(); onChanged && onChanged(out); await load(); if (label !== "Approve" || out.status === "approved") onClose(); }
@@ -47,7 +50,11 @@ export default function ApprovalSheet({ id, onClose, onChanged, onDiff, notify }
                  <div className="flex flex-wrap gap-2">
                    <button className="btn btn-primary" disabled={busy || !!why} onClick={() => run("Approve", () => call("/approve", { method: "POST", body: { decision_id: d.id }, auth: true }))}><Icon name="check" size={15} />Approve this effect</button>
                    <button className="btn btn-danger" disabled={busy || !pending || isRequester} onClick={() => run("Reject", () => call("/reject", { method: "POST", body: { decision_id: d.id }, auth: true }))}>Reject</button>
-                   <button className="btn btn-quiet ml-auto" onClick={onClose}>Cancel</button>
+                   <label className="ml-auto flex items-center gap-1.5 text-[12px] text-[#64748b]">Acting as
+                     <select className="field !w-auto !py-1" value={who} onChange={(ev) => { setUser(ev.target.value); setWho(ev.target.value); }} aria-label="Acting as">
+                       {USERS.map((u) => <option key={u.id} value={u.id}>{u.name} · {u.role}</option>)}
+                     </select></label>
+                   <button className="btn btn-quiet" onClick={onClose}>Cancel</button>
                  </div>
                  <div className="text-[12px] text-[#64748b] flex flex-wrap gap-x-3">
                    {pending && <span>Expires in <b className="text-[#0f172a]">{mmss(remain)}</b></span>}

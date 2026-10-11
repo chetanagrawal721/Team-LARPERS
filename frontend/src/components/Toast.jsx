@@ -1,10 +1,10 @@
 import { tidy } from "../api";
 import Icon from "./Icon";
 
-const TONE = { HOLD: ["#b45309", "Needs approval"], BLOCK: ["#b91c1c", "Blocked"], error: ["#b91c1c", "Not allowed"], ok: ["#15803d", "Done"] };
+const TONE = { access: ["#1d4ed8", "An agent is asking for access"], HOLD: ["#b45309", "Needs approval"], BLOCK: ["#b91c1c", "Blocked"], error: ["#b91c1c", "Not allowed"], ok: ["#15803d", "Done"] };
 
 // Compact notifications at the bottom right so they never cover the action stream.
-export default function Toasts({ items, onDismiss, onReview }) {
+export default function Toasts({ items, onDismiss, onReview, onOpenChat }) {
   return (
     <div className="fixed bottom-4 right-4 z-[60] space-y-2 w-[360px]" role="status" aria-live="polite">
       {items.map((t) => {
@@ -19,6 +19,7 @@ export default function Toasts({ items, onDismiss, onReview }) {
               <button className="text-[#64748b] hover:text-[#0f172a]" onClick={() => onDismiss(t.key)} aria-label="Dismiss"><Icon name="x" size={14} /></button>
             </div>
             {t.decisionId && <button className="btn mt-2 !py-1" onClick={() => onReview(t.decisionId)}>Show</button>}
+            {t.open && <button className="btn btn-primary mt-2 !py-1" onClick={() => { onOpenChat(); onDismiss(t.key); }}>Open chat to decide</button>}
           </div>
         );
       })}

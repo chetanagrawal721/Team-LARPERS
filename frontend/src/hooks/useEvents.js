@@ -9,7 +9,7 @@ export function useEvents(onEvent) {
 
   useEffect(() => {
     let es; let stop = false; let timer;
-    const types = ["decision", "approval", "execution", "void", "chat", "shadow", "audit", "freeze", "domain", "ai", "agent", "pipeline", "sandbox"];
+    const types = ["decision", "approval", "execution", "void", "chat", "shadow", "audit", "freeze", "domain", "ai", "agent", "pipeline", "sandbox", "access"];
     const open = () => {
       es = new EventSource(`${API}/events`);
       es.onopen = () => setOnline(true);

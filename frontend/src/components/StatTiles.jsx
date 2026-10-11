@@ -13,14 +13,14 @@ const Tile = ({ label, value, sub, tone, icon }) => (
 
 export default function StatTiles({ decisions }) {
   const total = decisions.length;
-  const allowed = decisions.filter((d) => d.status === "done" && d.verdict === "ALLOW" || d.status === "allowed").length;
-  const hold = decisions.filter((d) => d.verdict === "HOLD" && ["pending", "approved", "shadow"].includes(d.status)).length;
+  const allowed = decisions.filter((d) => d.status === "done").length;
+  const hold = decisions.filter((d) => ["pending", "approved", "shadow"].includes(d.status)).length;
   const blocked = decisions.filter((d) => d.verdict === "BLOCK" || d.status === "void").length;
   const pct = (n) => (total ? `${Math.round((100 * n) / total)}%` : "0%");
   return (
     <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
       <Tile label="Total actions" value={total} sub="in this session" tone="bg-[#e0ecff] text-[#2563eb]" icon="live" />
-      <Tile label="Allowed" value={allowed} sub={pct(allowed)} tone="bg-[#dcfce7] text-[#15803d]" icon="check" />
+      <Tile label="Executed" value={allowed} sub={pct(allowed)} tone="bg-[#dcfce7] text-[#15803d]" icon="check" />
       <Tile label="On hold" value={hold} sub={pct(hold)} tone="bg-[#fef3c7] text-[#b45309]" icon="warn" />
       <Tile label="Blocked" value={blocked} sub={pct(blocked)} tone="bg-[#fee2e2] text-[#b91c1c]" icon="x" />
     </div>
