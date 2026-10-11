@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
+import { useUser } from "../hooks/useUser";
 import Icon from "./Icon";
-import { ACTION_LABEL, AGENT_LABEL, PILL, USERS, call, eligibleApprovers, getUser, setUser, distinctPeople, num, pathLabel, plural, primary, rowCount, rupees, scopeSentence, stateOf, tidy, unitOf } from "../api";
+import { ACTION_LABEL, AGENT_LABEL, PILL, USERS, call, eligibleApprovers, distinctPeople, num, pathLabel, plural, primary, rowCount, rupees, scopeSentence, stateOf, tidy, unitOf } from "../api";
 
 const Stage = ({ n, title, children, bad }) => (
   <div className={`rounded-lg border p-3.5 min-w-0 ${bad ? "border-[#fecaca] bg-[#fff8f8]" : "border-[#e3e8ef] bg-white"}`}>
@@ -23,7 +24,7 @@ export function explainOf(d) {
 export default function ActionDetail({ d, onSheet, onDiff, onShadow, onChanged, notify }) {
   const [busy, setBusy] = useState("");
   const [requester, setRequester] = useState("");
-  const [me, setMe] = useState(getUser().name);
+  const me = useUser();
   useEffect(() => { call(`/sheet/${d.id}`).then((s) => setRequester(s.requester)).catch(() => {}); }, [d.id]);
   const act = async (label, fn) => {
     setBusy(label);
@@ -37,8 +38,8 @@ export default function ActionDetail({ d, onSheet, onDiff, onShadow, onChanged, 
   const v = stateOf(d);
   const pendingHuman = d.verdict === "HOLD" && d.status === "pending";
   const meInfo = USERS.find((u) => u.id === me);
-  const blockedWhy = !meInfo?.can ? `${meInfo?.name} cannot approve. Choose another person under "Acting as".`
-    : me === requester ? `${meInfo.name} is the requester and cannot approve their own request. Choose another person under "Acting as".`
+  const blockedWhy = !meInfo?.can ? `${meInfo?.name} cannot approve. Switch the user in the top-right menu.`
+    : me === requester ? `${meInfo.name} is the requester and cannot approve their own request. Switch the user in the top-right menu.`
     : d.approvals.includes(me) ? `${meInfo.name} has already approved this.` : "";
   const canApproveNow = !blockedWhy;
   const sealed = d.status === "approved", voided = d.status === "void", done = d.status === "done";
@@ -123,11 +124,6 @@ export default function ActionDetail({ d, onSheet, onDiff, onShadow, onChanged, 
         {d.shadow_session && <button className="btn" onClick={() => onShadow(d.shadow_session)}>Review sandbox work</button>}
         <button className="btn btn-quiet" onClick={() => onDiff(d)}>View diff</button>
         <button className="btn btn-quiet" onClick={() => onSheet(d.id)}>Full review</button>
-        <label className="ml-auto flex items-center gap-1.5 text-[12px] text-[#64748b]">Acting as
-          <select className="field !w-auto !py-1" value={me} onChange={(e) => { setUser(e.target.value); setMe(e.target.value); }} aria-label="Acting as">
-            {USERS.map((u) => <option key={u.id} value={u.id}>{u.name} · {u.role}</option>)}
-          </select>
-        </label>
       </div>
 
       <div className="pt-3 border-t border-[#eef1f6] text-[12px] text-[#64748b] flex flex-wrap gap-x-4 gap-y-1">

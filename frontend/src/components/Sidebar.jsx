@@ -1,6 +1,6 @@
 import Icon from "./Icon";
 
-const ITEMS = [["gate", "Live Gate", "live"], ["lab", "Attack Lab", "lab"], ["audit", "Audit", "audit"], ["policy", "Policy", "policy"], ["agents", "Agents", "agents"]];
+const ITEMS = [["gate", "Live Gate", "live"], ["lab", "Attack Lab", "lab"], ["activity", "Agent Activity", "chat"], ["audit", "Audit", "audit"], ["policy", "Policy", "policy"], ["agents", "Agents", "agents"]];
 
 export default function Sidebar({ page, onPage, org, onOrg, waiting }) {
   return (

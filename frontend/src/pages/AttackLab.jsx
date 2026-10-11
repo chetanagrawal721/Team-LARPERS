@@ -102,7 +102,7 @@ function Benchmark() {
 }
 
 
-export default function AttackLab({ activity, onWatch, notify }) {
+export default function AttackLab({ activity, notify, onReplay }) {
   const [tab, setTab] = useState("live");
   return (
     <div className="h-full flex flex-col">
@@ -113,7 +113,7 @@ export default function AttackLab({ activity, onWatch, notify }) {
         </div>
       </div>
       <div className="flex-1 min-h-0 overflow-auto">
-        {tab === "live" ? <div className="p-6"><LiveAttacks activity={activity} onWatch={onWatch} notify={notify} /></div> : <Benchmark />}
+        {tab === "live" ? <div className="p-6"><LiveAttacks activity={activity} notify={notify} onReplay={onReplay} /></div> : <Benchmark />}
       </div>
     </div>
   );

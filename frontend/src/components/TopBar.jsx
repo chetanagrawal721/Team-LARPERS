@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import Icon from "./Icon";
-import { USERS, getUser, setUser } from "../api";
+import { USERS, setUser } from "../api";
+import { useUser } from "../hooks/useUser";
 
 function useOutside(ref, close) {
   useEffect(() => {
@@ -28,10 +29,10 @@ export function OrgMenu({ orgs, current, onPick, onClose, className = "absolute 
   );
 }
 
-export default function TopBar({ orgs, domain, onDomain, ai, onAi, online, waiting, waitingList, onOpenWaiting, onUser, menuOpen, setMenuOpen }) {
+export default function TopBar({ pendingAccess = 0, onOpenAccess, orgs, domain, onDomain, ai, onAi, online, waiting, waitingList, onOpenWaiting, onUser, menuOpen, setMenuOpen }) {
   const [bell, setBell] = useState(false);
   const [who, setWho] = useState(false);
-  const [user, setU] = useState(getUser().name);
+  const user = useUser();
   const bellRef = useRef(null), whoRef = useRef(null);
   useOutside(bellRef, () => setBell(false));
   useOutside(whoRef, () => setWho(false));
@@ -50,6 +51,7 @@ export default function TopBar({ orgs, domain, onDomain, ai, onAi, online, waiti
       </div>
       <div className="ml-auto flex items-center gap-5">
         {!online && <span className="text-[12px] text-[#b91c1c]">Disconnected</span>}
+        {pendingAccess > 0 && <button className="pill pill-info !py-1 !px-2.5 text-[12px]" onClick={onOpenAccess}>{pendingAccess} agent{pendingAccess === 1 ? "" : "s"} waiting for access</button>}
         <button onClick={onAi} className="flex items-center gap-2 text-[13px]" title="AI can only make a decision stricter. Turn it off and nothing gets less safe.">
           <span className={`w-2 h-2 rounded-full ${ai ? "bg-[#16a34a]" : "bg-[#94a3b8]"}`} />
           <span className="text-[#475569]">AI assist:</span><b className={ai ? "text-[#15803d]" : "text-[#64748b]"}>{ai ? "On" : "Off"}</b>
@@ -81,7 +83,7 @@ export default function TopBar({ orgs, domain, onDomain, ai, onAi, online, waiti
             <div className="absolute right-0 mt-2 w-[250px] card p-1.5 shadow-lg z-50" role="menu">
               <div className="h-label px-2 py-1">Act as (demo sign-in)</div>
               {USERS.map((u) => (
-                <button key={u.id} role="menuitem" onClick={() => { setUser(u.id); setU(u.id); setWho(false); onUser && onUser(u.id); }}
+                <button key={u.id} role="menuitem" onClick={() => { setUser(u.id); setWho(false); onUser && onUser(u.id); }}
                         className="w-full flex items-center gap-2 px-2 py-2 rounded-lg hover:bg-[#f1f5f9] text-left">
                   <span className="w-4 text-[#2563eb]">{u.id === user && <Icon name="check" size={14} />}</span>
                   <span className="flex-1"><span className="block text-[13px] font-medium">{u.name}</span><span className="block text-[11px] text-[#64748b]">{u.role}</span></span>
