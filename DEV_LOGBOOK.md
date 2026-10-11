@@ -16,9 +16,9 @@
 | 1.1 | Policy loader, registry, default deny | aryanketkar-15 | ☑ |
 | 1.2 | Signed requests, nonces, timestamps | aryanketkar-15 | ☑ |
 | 1.3 | Hash-chained audit log | aryanketkar-15 | ☑ |
-| 2.1 | Bank seed DB and sandbox copies | chetanagrawal721 | ☐ |
-| 2.2 | Resolvers and Effect object | chetanagrawal721 | ☐ |
-| 2.3 | Data labels and destinations | chetanagrawal721 | ☐ |
+| 2.1 | Bank seed DB and sandbox copies | chetanagrawal721 | ☑ |
+| 2.2 | Resolvers and Effect object | chetanagrawal721 | ☑ |
+| 2.3 | Data labels and destinations | chetanagrawal721 | ☑ |
 | 3.1 | Envelope and envelope check | chetanagrawal721 | ☐ |
 | 3.2 | Rules R01–R12, tiers, decide() | chetanagrawal721 | ☐ |
 | 3.3 | Resource-keyed budgets | chetanagrawal721 | ☐ |
@@ -128,3 +128,33 @@
 **Last-moment changes:** no
 **Suggested commit message:** M1.3: hash-chained audit log with verify endpoint (R8, R10)
 **Known issues:** Truncating the newest entries is not detectable by the chain alone (documented limit).
+
+### [2.1] Bank seed database and sandbox copies — 2026-10-11 14:00 IST — Owner: chetanagrawal721
+**What has changed:** `gateway/seed/bank_seed.py`, `gateway/seed/common.py`, `gateway/sandbox.py`, `docs/fixtures.md`, `tests/test_seed.py`.
+**Why:** R5: the team has needed realistic fictional data with the demonstration traps planted, and a safe way to copy it for practice runs.
+**How:** SQLite file copies via the backup API are used as sandboxes. The seed is deterministic (fixed random seed) and plants 212 duplicate March charges across 61 customers (Rs 9.8 lakh, of which C-1042 holds Rs 6,400), 40 pending invoices, a poisoned inbox email and a verified vendor form. Bookkeeping tables (outbox, budgets, used_seals, shared_files) are shared by all domains.
+**Tests:** T2.1-1..8 covered by `tests/test_seed.py` (8 passed).
+**Deviations from plan:** none
+**Last-moment changes:** no
+**Suggested commit message:** M2.1: deterministic fictional bank seed with planted fixtures and sandbox copies
+**Known issues:** none
+
+### [2.2] Resolvers and the Effect object — 2026-10-11 14:00 IST — Owner: chetanagrawal721
+**What has changed:** `gateway/resolver.py`, `gateway/resolvers/__init__.py`, `gateway/resolvers/bank.py` (lookup, update_contact, refund, transfer, payee_change, grant_role), `tests/test_resolver.py`.
+**Why:** R5: the effect of an action (rows including FK cascades, amounts, recipients) has had to be measured rather than guessed.
+**How:** Each resolver applies the action to a sandbox copy; the watched tables are snapshotted before and after and diffed per primary key. Effect hash and a pre-image `state_ver` are computed for later sealing. The broad refund is expressed with `match=batch` (all duplicates of the same processor batch), which reproduces the 61-customer case without a deliberately broken resolver.
+**Tests:** T2.2-1..8 covered by `tests/test_resolver.py` (10 passed); real DB hash unchanged after every practice run.
+**Deviations from plan:** The 212-row case uses `refund(customer, month, match=batch)` instead of plain `refund(customer, month)`.
+**Last-moment changes:** no
+**Suggested commit message:** M2.2: sandbox resolvers returning exact effects with cascades (R5)
+**Known issues:** none
+
+### [2.3] Data labels and destinations — 2026-10-11 14:00 IST — Owner: chetanagrawal721
+**What has changed:** `gateway/labels.py`, label handling inside the resolvers, `tests/test_labels.py`.
+**Why:** Rules R05 and R07 have needed effects to carry sensitivity labels and destination classes computed by the gateway.
+**How:** Labels come from the policy catalog by touched column (unlabelled columns default to INTERNAL). Provenance of payee changes is resolved against the `forms` and `inbox` tables, so an agent cannot claim a trusted source: only a verified form that matches vendor and account is trusted. Email addresses are classified internal or external from the policy's domain list. A label-catalog version is hashed into every effect.
+**Tests:** T2.3-1..5, 7 covered by `tests/test_labels.py` (9 passed). T2.3-6 (file inherits labels) is covered with the shop resolvers in M7.2.
+**Deviations from plan:** File-inherited labels (T2.3-6) have been deferred to M7.2, where the `write_file` resolver exists.
+**Last-moment changes:** no
+**Suggested commit message:** M2.3: effect-level data labels, destinations and provenance path
+**Known issues:** none

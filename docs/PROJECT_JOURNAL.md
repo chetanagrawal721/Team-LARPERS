@@ -204,9 +204,9 @@ Additions to the suite after pre-registration must be logged in §11 with the re
 - [x] **Phase 1 checkpoint**
 
 ### Phase 2 — Effect resolution
-- [ ] 2.1 Bank seed DB and sandbox copies — chetanagrawal721
-- [ ] 2.2 Resolvers and Effect object — chetanagrawal721
-- [ ] 2.3 Data labels and destinations — chetanagrawal721
+- [x] 2.1 Bank seed DB and sandbox copies — chetanagrawal721
+- [x] 2.2 Resolvers and Effect object — chetanagrawal721
+- [x] 2.3 Data labels and destinations — chetanagrawal721
 - [ ] **Phase 2 checkpoint**
 
 ### Phase 3 — Decision engine
@@ -292,6 +292,9 @@ One line per milestone push, decision, or notable event. Newest at the bottom.
 | 2026-10-11 13:57 | aryanketkar-15 | Milestone | M1.1 — the policy loader, registry and default deny have been implemented. | |
 | 2026-10-11 13:57 | aryanketkar-15 | Milestone | M1.2 — HMAC-signed proposals with nonce and timestamp checks have been implemented. | |
 | 2026-10-11 13:57 | aryanketkar-15 | Milestone | M1.3 — the hash-chained audit log with verification has been implemented. | |
+| 2026-10-11 14:00 | chetanagrawal721 | Milestone | M2.1 — the deterministic bank seed and sandbox copy utility have been implemented. | |
+| 2026-10-11 14:00 | chetanagrawal721 | Milestone | M2.2 — sandbox resolvers returning exact effects have been implemented. | |
+| 2026-10-11 14:00 | chetanagrawal721 | Milestone | M2.3 — effect-level data labels, destinations and provenance have been implemented. | |
 
 **Entry types:** Decision · Design · Review · Milestone · Fix · Change · Test · Result · Docs
 
