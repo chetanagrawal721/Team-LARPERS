@@ -25,6 +25,8 @@ def replay(engine, seq: int) -> dict:
     out = decide(inputs, Policy(json.loads(row["policy_json"])))
     if payload.get("requeue") and out["verdict"] == "ALLOW":
         out.update(verdict="HOLD", rule="R10")
+    if payload.get("human_all") and out["verdict"] == "ALLOW":
+        out.update(verdict="HOLD", rule="R13")
     ok = out["verdict"] == e["decision"] and out["rule"] == e["rule"]
     return {"seq": seq, "reproduced": ok, "stored": {"verdict": e["decision"], "rule": e["rule"]},
             "replayed": {"verdict": out["verdict"], "rule": out["rule"], "reason": out["reason"]},

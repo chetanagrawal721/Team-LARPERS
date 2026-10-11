@@ -1,6 +1,10 @@
 import os
+import pathlib
 import subprocess
 import sys
+import tempfile
+import time
+import uuid
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Header, HTTPException, Request
@@ -32,6 +36,7 @@ BUS = Bus()
 def get_engine(d: str) -> Engine:
     if d not in ENGINES:
         ENGINES[d] = Engine(d)
+        ENGINES[d].require_human = True        # the live app: nothing runs, not even an allowed action, without a person
     ENGINES[d].bus = BUS
     return ENGINES[d]
 
@@ -196,85 +201,179 @@ async def events(request: Request, replay: int = 0, last_event_id: str | None = 
 @app.post("/chat")
 def chat(body: dict):
     """Agents post their chat lines here; the dashboard receives them as events."""
-    BUS.publish(Event(type="chat", ts=int(__import__("time").time()),
+    BUS.publish(Event(type="chat", ts=int(time.time()),
                       data={"from": str(body.get("from", "agent")), "agent": str(body.get("agent", "")),
-                            "text": str(body.get("text", ""))[:2000]}))
+                            "text": str(body.get("text", ""))[:4000], "run": str(body.get("run", ""))[:40]}))
     return {"ok": True}
-
-
-def _spawn(name: str, text: str | None = None) -> dict:
-    """Start a scripted scenario as a separate process that holds only agent signing keys."""
-    from agents import scenarios
-    if name not in scenarios.SCENARIOS:
-        raise HTTPException(404, "unknown scenario")
-    want = scenarios.DOMAIN_OF[name]
-    if CURRENT["domain"] != want:
-        switch_domain(want)
-    env = _agent_env()
-    args = [sys.executable, "-m", "agents.run", name] + (["--text", text] if text else [])
-    p = subprocess.Popen(args, cwd=str(config.ROOT), env=env)
-    return {"started": name, "pid": p.pid, "domain": want}
-
-
-AGENT = {"mode": None}      # None = decide from configuration; "llm" or "scripted"
-
-
-def _llm_configured() -> bool:
-    return os.environ.get("AI_PROVIDER", "none").lower() in ("openrouter", "gemini", "ollama") and bool(os.environ.get("AI_MODEL"))
-
-
-def _agent_mode() -> str:
-    return AGENT["mode"] or ("llm" if _llm_configured() else "scripted")
 
 
 def _agent_env() -> dict:
     """The agent process gets its signing keys and its own model credentials, nothing of the gateway's."""
-    keep = ("PATH", "SYSTEMROOT", "TEMP", "TMP", "AI_PROVIDER", "AI_MODEL", "AI_API_KEY", "AI_TIMEOUT_SECONDS", "OLLAMA_URL")
+    keep = ("PATH", "SYSTEMROOT", "TEMP", "TMP", "AI_PROVIDER", "AI_MODEL", "AI_API_KEY", "AI_TIMEOUT_SECONDS", "AI_FALLBACK",
+            "AGENT_LLM_TIMEOUT", "AGENT_ACCESS_WAIT", "AGENT_DECISION_WAIT", "OLLAMA_URL", "OLLAMA_MODEL")
     env = {k: v for k, v in os.environ.items() if k.startswith("AGENT_KEY_") or k in keep}
     env["GATEWAY_URL"] = os.environ.get("PUBLIC_GATEWAY_URL", "http://127.0.0.1:8000")
     return env
 
 
+def _llm_chain() -> list[str]:
+    from agents import llm
+    return llm.chain()
+
+
 @app.get("/agent/mode")
 def agent_mode_get():
-    return {"mode": _agent_mode(), "llm_configured": _llm_configured(), "provider": os.environ.get("AI_PROVIDER", "none"),
-            "model": os.environ.get("AI_MODEL", "")}
+    from agents import llm
+    chain = _llm_chain()
+    return {"mode": "llm", "llm_configured": bool(chain), "providers": chain, "provider": chain[0] if chain else "none",
+            "model": llm.model_for(chain[0]) if chain else ""}
 
 
-@app.post("/agent/mode")
-def agent_mode_set(body: dict):
-    m = str(body.get("mode", ""))
-    if m not in ("llm", "scripted"):
-        raise HTTPException(422, "mode must be 'llm' or 'scripted'")
-    AGENT["mode"] = m
-    return agent_mode_get()
+def _start_agent(domain: str, text: str, attachment: str = "", auto_access: bool = False, provider: str = "") -> dict:
+    """Start the live agent as its own process. Every request goes through the language model; nothing is scripted."""
+    if not _llm_chain():
+        BUS.publish(Event(type="chat", ts=int(time.time()), data={"from": "gate", "agent": "", "run": "",
+                          "text": "No language model is available. Set AI_PROVIDER, AI_MODEL and AI_API_KEY in .env, or start Ollama, then try again."}))
+        raise HTTPException(503, "no language model available")
+    if CURRENT["domain"] != domain:
+        switch_domain(domain)
+    run_id = "run-" + uuid.uuid4().hex[:8]
+    args = [sys.executable, "-m", "agents.llm_agent", "--domain", domain, "--text", text, "--run-id", run_id]
+    if attachment.strip():
+        f = pathlib.Path(tempfile.mkdtemp(prefix="sealgate-att-")) / "attachment.txt"
+        f.write_text(attachment, encoding="utf-8")
+        args += ["--attachment-file", str(f)]
+    if auto_access:
+        args.append("--auto-access")
+    env = _agent_env()
+    if provider:
+        from agents import llm
+        if provider not in _llm_chain():
+            raise HTTPException(422, f"provider {provider!r} is not available; choose one of {_llm_chain()}")
+        env["AI_PROVIDER"], env["AI_MODEL"], env["AI_FALLBACK"] = provider, llm.model_for(provider), ""   # this model only, no silent switch
+    p = subprocess.Popen(args, cwd=str(config.ROOT), env=env)
+    return {"started": "llm-agent", "run": run_id, "pid": p.pid, "domain": domain, "provider": provider or "default"}
+
+
+@app.post("/demo/chat")
+def demo_chat(body: dict):
+    text = str(body.get("text", ""))[:3000].strip()
+    if not text:
+        raise HTTPException(422, "empty request")
+    return _start_agent(CURRENT["domain"], text, str(body.get("attachment", ""))[:20000], provider=str(body.get("provider", "")))
+
+
+# ---------------------------------------------------------------------------------- agent access (human in the loop)
+ACCESS: dict[str, dict] = {}
+
+
+def _publish_access(a: dict) -> None:
+    BUS.publish(Event(type="access", ts=int(time.time()), data=dict(a)))
+
+
+@app.post("/agent/access")
+def agent_access(body: dict):
+    """An agent asks for access before it may send its proposal to the gateway. A person grants or denies it."""
+    aid = "A-" + uuid.uuid4().hex[:8]
+    a = {"id": aid, "run": str(body.get("run", ""))[:40], "agent": str(body.get("agent", "")), "agent_name": str(body.get("agent_name", "")),
+         "tool": str(body.get("tool", "")), "action": str(body.get("action", "")), "args": body.get("args") or {},
+         "intent": str(body.get("intent", ""))[:600], "prompt": str(body.get("prompt", ""))[:6000],
+         "status": "pending", "by": "", "ts": int(time.time())}
+    if body.get("auto"):
+        a.update(status="granted", by="the person who pressed Execute")
+    ACCESS[aid] = a
+    _publish_access(a)
+    return {"id": aid, "status": a["status"]}
+
+
+@app.get("/agent/access/{aid}")
+def agent_access_get(aid: str):
+    if aid not in ACCESS:
+        raise HTTPException(404, "no such access request")
+    return ACCESS[aid]
+
+
+@app.get("/agent/access")
+def agent_access_list():
+    return sorted(ACCESS.values(), key=lambda a: a["ts"], reverse=True)[:30]
+
+
+def _decide_access(aid: str, verdict: str, x_user, x_token) -> dict:
+    u = human(x_user, x_token)
+    a = ACCESS.get(aid)
+    if not a:
+        raise HTTPException(404, "no such access request")
+    if a["status"] != "pending":
+        raise GateError(409, f"this request is already {a['status']}")
+    a.update(status=verdict, by=u["name"])
+    _publish_access(a)
+    return a
+
+
+@app.post("/agent/access/{aid}/grant")
+def agent_access_grant(aid: str, x_user: str | None = Header(None), x_token: str | None = Header(None)):
+    return _decide_access(aid, "granted", x_user, x_token)
+
+
+@app.post("/agent/access/{aid}/deny")
+def agent_access_deny(aid: str, x_user: str | None = Header(None), x_token: str | None = Header(None)):
+    return _decide_access(aid, "denied", x_user, x_token)
 
 
 @app.post("/agent/step")
 def agent_step(body: dict):
     """The live agent reports each step (prompts, model replies, thoughts, tool calls) here for the live feed."""
-    BUS.publish(Event(type="agent", ts=int(__import__("time").time()),
+    BUS.publish(Event(type="agent", ts=int(time.time()),
                       data={"run": str(body.get("run", ""))[:40], "kind": str(body.get("kind", ""))[:30],
-                            "text": str(body.get("text", ""))[:6000], "data": body.get("data") or {}}))
+                            "text": str(body.get("text", ""))[:8000], "data": body.get("data") or {}}))
     return {"ok": True}
 
 
-@app.post("/demo/chat")
-def demo_chat(body: dict):
-    """Every typed request goes to the live language-model agent; the keyword router is only the scripted-mode fallback."""
-    from agents import scenarios
-    text = str(body.get("text", ""))[:1000].strip()
-    if not text:
-        raise HTTPException(422, "empty request")
-    if _agent_mode() == "llm":
-        p = subprocess.Popen([sys.executable, "-m", "agents.llm_agent", "--domain", CURRENT["domain"], "--text", text],
-                             cwd=str(config.ROOT), env=_agent_env())
-        return {"started": "llm-agent", "pid": p.pid, "domain": CURRENT["domain"], "mode": "llm"}
-    name, _ = scenarios.from_text(text)
-    if not name:
-        BUS.publish(Event(type="chat", ts=0, data={"from": "gate", "agent": "", "text": "Scripted mode only understands refunds, contact updates, vendor changes, invoice payments, reports and mailings. Switch the agent to Live LLM to ask anything."}))
-        return {"started": None, "mode": "scripted"}
-    return _spawn(name, text)
+@app.post("/acknowledge/{decision_id}")
+def acknowledge(decision_id: str, x_user: str | None = Header(None), x_token: str | None = Header(None)):
+    """A person has looked at a blocked decision. The block itself is never overridden."""
+    from . import audit as audit_mod, clock
+    u = human(x_user, x_token)
+    e = engine()
+    d = e.get_decision(decision_id)
+    if not d:
+        raise HTTPException(404, "no such decision")
+    if d.verdict != "BLOCK" and d.status != "blocked":
+        raise GateError(409, "only blocked decisions are acknowledged")
+    if u["id"] in d.reviewed_by:
+        raise GateError(409, "you have already reviewed this")
+    d.reviewed_by = d.reviewed_by + [u["id"]]
+    e.save_decision(d)
+    audit_mod.append(e.state, int(clock.now()), u["id"], "acknowledge_block", {"decision_id": d.id, "rule": d.rule},
+                     "BLOCK", d.rule, "rules-only", e.policy.hash)
+    e.emit("approval", d.id, user=u["id"], status="reviewed")
+    return d
+
+
+# ---------------------------------------------------------------------------------------- live attack prompts
+def _attacks() -> list[dict]:
+    import yaml
+    return yaml.safe_load((config.ROOT / "lab" / "attacks.yaml").read_text(encoding="utf-8"))
+
+
+@app.get("/attacks")
+def attacks_list():
+    return _attacks()
+
+
+@app.post("/attacks/{attack_id}/run")
+def attack_run(attack_id: str, body: dict | None = None):
+    """Run one prepared attack through the live agent. Pressing Execute grants the agent access; the gateway still
+    measures the action in the sandbox and a person still decides. The prompts may be edited before running."""
+    a = next((x for x in _attacks() if x["id"] == attack_id), None)
+    if not a:
+        raise HTTPException(404, "no such attack")
+    body = body or {}
+    request = str(body.get("request") or a["request"])[:3000]
+    attachment = str(body.get("attachment") if body.get("attachment") is not None else a["attachment"])[:20000]
+    out = _start_agent(a["domain"], request, attachment, auto_access=True, provider=str(body.get("provider", "")))
+    out["attack"] = attack_id
+    return out
 
 
 LAB = {"last": None}
@@ -365,8 +464,15 @@ def agents_view():
                 for act in cfg.get("actions", []):
                     for _, key, limit in budgets.keys_for(e.policy, name, act):
                         pct = max(pct, round(100 * budgets.used(conn, key, clock.now()) / limit))
+                from agents import toolspec
+                info = next((a for a in toolspec.AGENTS.get(d, []) if a["id"] == name), {})
+                tools = [{"name": t["name"], "action": t["action"], "description": t["description"], "params": t["params"],
+                          "required": t["required"]} for t in toolspec.TOOLS.get(d, []) if t["agent"] == name]
                 out.append({"agent": name, "domain": d, "org": e.policy.org, "actions": cfg.get("actions", []),
-                            "acts_for": cfg.get("acts_for", ""), "status": status, "budget_pct": min(pct, 100)})
+                            "acts_for": cfg.get("acts_for", ""), "status": status, "budget_pct": min(pct, 100),
+                            "display_name": info.get("name", name), "role": info.get("role", ""), "does": info.get("does", []),
+                            "cannot": info.get("cannot", []), "tools": tools, "prompt": toolspec.agent_prompt(d, name),
+                            "protected": [a for a in cfg.get("actions", []) if e.policy.is_protected(a)]})
         finally:
             conn.close()
     return out
@@ -394,8 +500,3 @@ def approval_sheet(decision_id: str):
 def audit_evidence(seq: int):
     from . import evidence
     return evidence.build(engine(), seq)
-
-
-@app.post("/demo/{scenario}")
-def demo_scenario(scenario: str):
-    return _spawn(scenario)

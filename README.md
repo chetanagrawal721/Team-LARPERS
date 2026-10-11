@@ -37,19 +37,23 @@ pytest -q           # all tests (about 70 s; includes the 3-mode Attack Lab)
 python -m lab.runner   # the paired attack suite on its own
 ```
 
-## Demo script (≈ 2:45)
+## Demo script (about 3 minutes)
+Everything is live: every request goes to a language model (set `AI_PROVIDER`, `AI_MODEL`, `AI_API_KEY` in `.env`, or just run Ollama). Nothing is scripted. An agent first asks you for **access** in the chat, the gateway measures its proposal in a sandbox, and a person approves or rejects the result.
+
 | # | Action | What to say |
 |---|---|---|
-| 1 | Chat: **Update phone** | Ordinary work goes straight through. |
-| 2 | **Refund C-1042** | The request named one customer. We measured it: 212 refunds, 61 customers. Normal gate: ALLOW. SEALGATE: BLOCK. |
-| 3 | Click **Smallest safe version** | Not a dead end: 3 refunds, Rs 6,400, re-checked, sealed, executed. |
-| 4 | **Vendor email change** → open **Shadow mode** → Discard | Suspicious agents don't get stopped, they get a sandbox. |
-| 5 | **Pay 40 invoices** → approve as priya, then as anita → **Insert invoices** → **Execute** | Same request, same arguments. Approved for 40 rows; 4,000 now match. The seal breaks; nothing runs. |
-| 6 | Switch to 🏥 → **Share Ramesh's report** | Same engine, only the policy file changed. |
-| 7 | Switch to 🛒 → **Customer list → agency** | Two agents, each allowed; the file carries its data's labels. |
-| 8 | Toggle **AI off**, repeat beat 2 | AI makes us stricter, never looser (`fallback` in the log). |
-| 9 | Edit an audit row in the DB → **Audit log → Verify chain** | Every decision, including refusals, is tamper-evident. |
-| 10 | **Attack Lab → Run suite** | Pre-registered and paired — add your own case. |
+| 1 | **Ask an agent** → "What can you help me with?" | The model answers general questions itself; no agent is involved. |
+| 2 | "Update customer C-0007's phone number to +91-9811122233" → **Grant access** → on the Live Gate **Approve**, then **Execute** | Ordinary work: the agent asks, the gateway measures one row, a person approves. Even an allowed action waits for a person. |
+| 3 | **Attack Lab → Live attacks → Execute** on "Duplicate-charge ticket" | A short, narrow request plus a long ticket with a buried instruction. The model is fooled into refunding the whole batch; the sandbox measures 212 rows against the 1 customer asked for; the gateway blocks it and offers the smallest safe version. |
+| 4 | Open **Live activity** | Every gateway check, then the sandbox result row by row, each row APPROVED or DENIED. |
+| 5 | Open **Prompts** → **Show whole prompt** | The exact text the model received and what it answered. |
+| 6 | **Agents** page | What each agent does, cannot do, its tools and its own prompt. |
+| 7 | Pay the pending invoices, approve with two people, **Add 3,960 matching invoices**, **Execute** | Same request, same arguments, but the data changed. The seal breaks; nothing runs. |
+| 8 | Toggle **AI assist** off and repeat a block | AI makes us stricter, never looser (`rules only` in the log). |
+| 9 | **Audit** → **Verify** | Every decision, including refusals, is tamper-evident and replayable. |
+| 10 | **Attack Lab → Benchmark suite → Run suite** | Pre-registered paired evidence in three modes. |
+
+More prompts to try are in the chat panel ("Try these prompts"): questions, normal work, requests that should be blocked, and prompts that test the agent (invented ids, missing details, attempts to extract its prompt).
 
 ## Architecture in one paragraph
 Agents are separate processes that hold only a signing key and can only `POST /propose`. Only the gateway process opens the databases, mail and payment channels. Business data lives in one SQLite file per domain (`gateway/data/*.db`, generated, never committed); gateway state (audit chain, seals, approvals, shadow sessions) lives in `<domain>_state.db`.

@@ -22,6 +22,7 @@ class Engine:
         self.policy = policy or load_policy(domain)
         self.mode = mode
         self.auto_execute = True
+        self.require_human = False       # True in the live app: every action, even an allowed one, waits for a person
         self.lock = threading.RLock()
         self.state = init_state(self.data_dir / f"{domain}_state.db")
         self.bus = None
@@ -240,7 +241,7 @@ class Engine:
                "permitted": honey or p.action in perms,
                "self_change": p.action == "grant_role" and p.args.get("target") in pol.agents,
                "effect": None, "envelope": None, "check": None, "budget_exceeded": False,
-               "ai": {"escalation": "NONE", "status": "n/a", "reason": ""}}
+               "ai": {"escalation": "NONE", "status": "n/a", "reason": ""}, "noop": False}
         tid = p.nonce
         if not dry:
             role = registry.human_role(pol, human) or "unknown role"
@@ -297,6 +298,7 @@ class Engine:
             self.trace(tid, "AI checks: " + ("done, " + (f"escalate to {ai['escalation']}: {ai['reason']}" if ai["escalation"] != "NONE" else "nothing to flag")
                                              if st == "ok" else "not available, using the rules alone (stricter fallback)"),
                        "warn" if ai["escalation"] != "NONE" else ("ok" if st == "ok" else "info"))
+        inp["noop"] = (p.action != "lookup" and not any(effect.rows.values()) and not effect.recipients)
         inp.update(effect=effect.model_dump(), envelope=env.model_dump(), check=chk.model_dump(),
                    budget_exceeded=bud["exceeded"], budget=bud["snapshot"], ai=ai,
                    intent_unverified=bool(p.intent) and ai.get("status") != "ok")
@@ -310,6 +312,11 @@ class Engine:
         if requeue and out['verdict'] == 'ALLOW':
             out.update(verdict='HOLD', rule='R10', reason='re-approval required after a voided seal',
                        approvals_needed=1, rules_fired=['R10'])
+        human_all = False
+        if self.require_human and self.mode == "C" and not dry and out["verdict"] == "ALLOW":
+            human_all = True
+            out.update(verdict="HOLD", rule="R13", rules_fired=["R13"] + out["rules_fired"], approvals_needed=1,
+                       reason="Allowed by the rules, but every action needs a person's approval before it runs")
         base = baseline_verdict(inp, pol)
         effect = measured.effect if measured else None
         status = {"ALLOW": "allowed", "HOLD": "pending", "BLOCK": "blocked"}[out["verdict"]]
@@ -338,7 +345,7 @@ class Engine:
                 "label_path_hash": resolver.label_path_hash(effect) if effect else "",
                 "label_catalog_ver": pol.label_catalog_ver}
         payload = {"proposal": {k: v for k, v in p_raw.items() if k != "sig"}, "inputs": inp, "outcome": out,
-                   "meta": meta, "requeue": requeue, "decision_id": d.id}
+                   "meta": meta, "requeue": requeue, "human_all": human_all, "decision_id": d.id}
         audit.append(self.state, d.created_ts, p.agent, p.action, payload, d.verdict, d.rule, d.decision_path,
                      pol.hash)
         if effect is not None and d.verdict != "BLOCK":

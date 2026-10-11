@@ -65,6 +65,8 @@ def block_rules(inp: dict, policy: Policy) -> tuple[str, str] | None:
     chk = inp.get("check")
     if chk and not chk.get("inside", True):
         return "R06", "effect is outside what was asked: " + "; ".join(chk.get("reasons", []))
+    if inp.get("noop"):
+        return "R99", "no records matched this request, so there is nothing to do"
     return None
 
 

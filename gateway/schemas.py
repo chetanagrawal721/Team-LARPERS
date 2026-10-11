@@ -69,6 +69,7 @@ class Decision(BaseModel):
     tier: str = ""
     approvals_needed: int = 0
     approvals: list[str] = []
+    reviewed_by: list[str] = []          # people who looked at a blocked decision and acknowledged it
     rules_fired: list[str] = []
     drift: DriftType | None = None
     ai_reason: str = ""
@@ -88,7 +89,7 @@ class ApprovalRequest(BaseModel):
 
 class Event(BaseModel):
     type: Literal["decision", "approval", "execution", "void", "chat", "shadow",
-                  "audit", "freeze", "domain", "ai", "agent", "pipeline", "sandbox"]
+                  "audit", "freeze", "domain", "ai", "agent", "pipeline", "sandbox", "access"]
     ts: int
     decision_id: str | None = None
     data: dict = Field(default_factory=dict)
