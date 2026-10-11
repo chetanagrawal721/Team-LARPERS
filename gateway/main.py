@@ -25,7 +25,7 @@ async def lifespan(_):
 
 
 app = FastAPI(title="SEALGATE", lifespan=lifespan)
-app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:5173"],
+app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:5173", *filter(None, os.environ.get("CORS_ORIGINS", "").split(","))],
                    allow_methods=["*"], allow_headers=["*"])
 
 ENGINES: dict[str, Engine] = {}
