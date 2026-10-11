@@ -1,7 +1,14 @@
 import Seal from "./Seal";
-import { distinctPeople, primary, rowCount, rupees } from "../api";
+import { distinctPeople, num, plural, primary, rowCount, rupees, unitOf } from "../api";
 
-// Expected -> Sandbox -> Real. The sandbox bar overshoots the dotted envelope in red when the action does more than asked.
+const Col = ({ title, children, tone }) => (
+  <div className={`px-4 py-3 min-w-0 ${tone || ""}`}>
+    <div className="label mb-1.5">{title}</div>
+    {children}
+  </div>
+);
+
+// Asked for -> Sandbox measured -> Real database. The bar overshoots the dashed limit when the action does more than asked.
 export default function ThreeStageStrip({ d }) {
   const eff = d.effect, env = d.envelope, chk = d.envelope_check;
   const { table, rows } = primary(eff);
@@ -9,62 +16,58 @@ export default function ThreeStageStrip({ d }) {
   const maxRows = env?.max_rows ?? null;
   const people = distinctPeople(eff);
   const outside = chk && !chk.inside;
-  const scale = Math.max(n, maxRows ?? 0, 1);
-  const envPct = maxRows != null ? Math.max(4, (maxRows / scale) * 100) : 100;
-  const barPct = Math.max(4, (n / scale) * 100);
   const voided = d.status === "void" || d.verdict === "VOID";
   const done = d.status === "done";
-  const sealState = voided ? "cracked" : (done || d.status === "approved" || d.status === "allowed") ? "intact" : "none";
+  const sealState = voided ? "cracked" : ["done", "approved", "allowed"].includes(d.status) ? "intact" : "none";
   const drift = (d.reason || "").match(/\((\d[\d,]*) -> (\d[\d,]*) rows\)/);
+  const scale = Math.max(n, maxRows ?? 0, 1);
+  const limitPct = maxRows != null ? (maxRows / scale) * 100 : null;
+  const unit = unitOf(table);
 
   return (
-    <div className="grid grid-cols-[1fr_1.4fr_1fr_auto] gap-3 items-stretch text-sm">
-      <div className="rounded-lg border border-slate-700 bg-slate-900/60 p-3">
-        <div className="text-xs uppercase tracking-wide text-slate-400 mb-2">① Expected</div>
+    <div className="panel grid grid-cols-[1fr_1.25fr_1fr_auto] divide-x divide-[#30363d] items-stretch">
+      <Col title="Asked for">
         {env ? (
-          <ul className="space-y-1">
-            {maxRows != null && <li>≤ {maxRows} {table || "rows"}</li>}
-            {Object.entries(env.scope || {}).map(([k, v]) => <li key={k}>{k}: <b>{String(v)}</b></li>)}
-            {env.max_amount_minor != null && <li>≤ {rupees(env.max_amount_minor)}</li>}
-            <li className="text-xs text-slate-500">{env.source === "ai_from_instruction" ? "from your request (AI)" : "policy default"}</li>
+          <ul className="space-y-0.5 text-[13px]">
+            {maxRows != null && <li>up to <b>{plural(maxRows, unit)}</b></li>}
+            {Object.entries(env.scope || {}).map(([k, v]) => <li key={k} className="text-[#c9d1d9]">{k} <b>{String(v)}</b></li>)}
+            {env.max_amount_minor != null && <li>up to <b>{rupees(env.max_amount_minor)}</b></li>}
+            <li className="text-[11px] text-[#8b949e] pt-1">{env.source === "ai_from_instruction" ? "read from your request by AI, clamped to policy" : "policy default"}</li>
           </ul>
-        ) : <span className="text-slate-500">—</span>}
-      </div>
+        ) : <span className="text-[#8b949e]">Not evaluated</span>}
+      </Col>
 
-      <div className={`rounded-lg border p-3 ${outside ? "border-rose-500/60 bg-rose-950/20" : "border-emerald-500/40 bg-emerald-950/10"}`}>
-        <div className="text-xs uppercase tracking-wide text-slate-400 mb-2">② Sandbox did</div>
+      <Col title="Sandbox measured">
         {eff ? (
           <>
-            <ul className="space-y-1 mb-2">
-              <li className={outside ? "text-rose-300" : ""}><b>{n.toLocaleString("en-IN")}</b> {table || "rows"} {outside && "⚠"}</li>
-              {people > 0 && <li className={outside && people > 1 ? "text-rose-300" : ""}>{people} {people === 1 ? "person" : "people"}</li>}
-              {eff.amount_minor > 0 && <li className={chk?.over_amount ? "text-rose-300" : ""}>{rupees(eff.amount_minor)}</li>}
-              {eff.recipients?.length > 0 && <li>{eff.recipients.length} recipient(s)</li>}
-              {eff.labels?.length > 0 && <li className="text-xs text-slate-400">labels: {eff.labels.join(", ")}</li>}
-            </ul>
-            <div className="relative h-3 rounded bg-slate-800">
-              {maxRows != null && <div className="absolute inset-y-0 left-0 border-r-2 border-dashed border-cyan-300" style={{ width: `${envPct}%` }} />}
-              <div className={`absolute inset-y-0 left-0 rounded ${outside ? "bg-rose-500" : "bg-emerald-500"}`} style={{ width: `${barPct}%`, opacity: 0.85 }} />
+            <div className={`text-2xl font-semibold leading-none ${outside ? "text-[#ff7b72]" : "text-[#e6edf3]"}`}>{num(n)} <span className="text-sm font-normal text-[#8b949e]">{unit}{n === 1 ? "" : "s"}</span></div>
+            <div className="text-[13px] text-[#c9d1d9] mt-1">
+              {[people > 0 && `${num(people)} ${people === 1 ? "person" : "people"}`, eff.amount_minor > 0 && rupees(eff.amount_minor), eff.recipients?.length > 0 && plural(eff.recipients.length, "recipient")].filter(Boolean).join(" · ") || "no records changed"}
             </div>
+            <div className="relative h-1.5 rounded bg-[#21262d] mt-2.5" aria-hidden>
+              <div className={`absolute inset-y-0 left-0 rounded ${outside ? "bg-[#f85149]" : "bg-[#3fb950]"}`} style={{ width: `${Math.max(3, (n / scale) * 100)}%` }} />
+              {limitPct != null && <div className="absolute -top-1 -bottom-1 border-l border-dashed border-[#d2a8ff]" style={{ left: `${limitPct}%` }} />}
+            </div>
+            {limitPct != null && <div className="text-[11px] text-[#8b949e] mt-1">dashed line: what was asked for</div>}
+            {eff.labels?.length > 0 && <div className="text-[11px] text-[#8b949e] mt-1">data: {eff.labels.join(", ")}</div>}
           </>
-        ) : <span className="text-slate-500">no effect measured</span>}
-      </div>
+        ) : <span className="text-[#8b949e]">No effect measured</span>}
+      </Col>
 
-      <div className={`rounded-lg border p-3 ${voided ? "border-rose-500/60 bg-rose-950/20" : "border-slate-700 bg-slate-900/60"}`}>
-        <div className="text-xs uppercase tracking-wide text-slate-400 mb-2">③ Real</div>
+      <Col title="Real database" tone={voided ? "bg-[#f8514914]" : ""}>
         {voided ? (
-          <div className="text-rose-300">
-            <div className="font-semibold">SEAL BROKEN</div>
-            <div className="text-xs">{(d.drift || "drift").replace("_", " ")}{drift ? ` (${drift[1]} → ${drift[2]})` : ""}</div>
-            <div className="text-xs text-slate-400 mt-1">nothing ran</div>
+          <div>
+            <div className="font-semibold text-[#ff7b72]">Seal broken</div>
+            <div className="text-[13px]">{(d.drift || "changed").replace("_", " ")}{drift ? `: ${drift[1]} to ${drift[2]} rows` : ""}</div>
+            <div className="text-[11px] text-[#8b949e] mt-1">nothing was changed</div>
           </div>
         ) : done ? (
-          <div className="text-emerald-300"><b>{rowCount(eff).toLocaleString("en-IN")}</b> rows changed<div className="text-xs text-slate-400">matches the sandbox</div></div>
-        ) : d.status === "shadow" ? <span className="text-amber-300">kept in sandbox</span>
-          : <span className="text-slate-500">not run</span>}
-      </div>
+          <div><div className="font-semibold text-[#56d364]">{num(rowCount(eff))} rows changed</div><div className="text-[11px] text-[#8b949e] mt-1">identical to the sandbox result</div></div>
+        ) : d.status === "shadow" ? <div className="text-[#d29922]">Untouched. Work is held in a sandbox.</div>
+          : <div className="text-[#8b949e]">Untouched</div>}
+      </Col>
 
-      <div className="flex items-center"><Seal state={sealState} /></div>
+      <div className="flex items-center px-4"><Seal state={sealState} /></div>
     </div>
   );
 }

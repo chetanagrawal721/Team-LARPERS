@@ -50,7 +50,7 @@ export default function App() {
       await refresh();
       if (e.type === "decision" && ["HOLD", "BLOCK"].includes(e.data.verdict)) {
         if (Date.now() > lockSel.current) setSelected(e.decision_id);
-        notify(e.data.verdict, `${e.data.agent} → ${e.data.action}: ${e.data.reason}`, { decisionId: e.decision_id, safe: false });
+        notify(e.data.verdict, `${e.data.agent} / ${e.data.action}: ${e.data.reason}`, { decisionId: e.decision_id });
       }
       if (e.type === "void") { lockSel.current = Date.now() + 10000; setSelected(e.decision_id); }
     }
@@ -59,18 +59,17 @@ export default function App() {
 
   const switchDomain = async (d) => {
     try { await call(`/domain/${d}`, { method: "POST" }); setMessages([]); setSelected(null); await loadMeta(); await refresh(); }
-    catch { notify("error", "Could not switch domain"); }
+    catch { notify("error", "Could not switch organisation."); }
   };
-  const toggleAi = async () => { const r = await call("/ai/toggle", { method: "POST" }); setAi(r.enabled); notify("ok", `AI ${r.enabled ? "on" : "off"}: decisions will show path ${r.enabled ? "rules+ai" : "fallback"}`); };
-  const safeFromToast = async (id) => { try { await call(`/safe-version/${id}`, { method: "POST", auth: true }); await refresh(); } catch (e) { notify("error", e.message); } };
+  const toggleAi = async () => { const r = await call("/ai/toggle", { method: "POST" }); setAi(r.enabled); notify("ok", r.enabled ? "AI checks are on. They can only make a decision stricter." : "AI checks are off. Decisions use the rules alone, with the same safety."); };
 
   return (
     <div className="h-full flex flex-col">
       <TopBar domain={domain} org={org} onDomain={switchDomain} ai={ai} onAi={toggleAi} page={page} onPage={setPage}
               online={online} onAudit={() => setOverlay({ kind: "audit" })} />
-      {(offline || !online) && <div className="bg-rose-900/60 text-rose-100 text-center py-1 text-sm">Gateway offline — start it with ./run.sh</div>}
+      {(offline || !online) && <div className="bg-[#f8514922] border-b border-[#f8514955] text-[#ffa198] text-center py-1.5 text-[13px]" role="alert">Cannot reach the gateway. Start it with ./run.sh and this page will reconnect on its own.</div>}
       {page === "lab" ? <div className="flex-1 min-h-0"><AttackLab /></div> : (
-        <main className="flex-1 min-h-0 grid grid-cols-[2fr_3fr]">
+        <main className="flex-1 min-h-0 grid grid-cols-[minmax(300px,2fr)_3fr]">
           <ChatPanel domain={domain} messages={messages} />
           <Console decisions={decisions} selectedId={selected} onSelect={setSelected}
                    onOpenDiff={(d) => setOverlay({ kind: "diff", d })} onOpenShadow={(sid) => setOverlay({ kind: "shadow", sid })}
@@ -78,7 +77,7 @@ export default function App() {
         </main>
       )}
       <Toasts items={toasts} onDismiss={(k) => setToasts((t) => t.filter((x) => x.key !== k))}
-              onReview={(id) => { setSelected(id); setPage("gate"); }} onSafe={safeFromToast} />
+              onReview={(id) => { setSelected(id); setPage("gate"); }} />
       {overlay?.kind === "diff" && <DiffOverlay d={overlay.d} onClose={() => setOverlay(null)} />}
       {overlay?.kind === "shadow" && <ShadowOverlay sid={overlay.sid} onClose={() => { setOverlay(null); refresh(); }} notify={notify} />}
       {overlay?.kind === "audit" && <AuditDrawer onClose={() => setOverlay(null)} />}

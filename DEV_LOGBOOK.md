@@ -368,3 +368,13 @@
 **Last-moment changes:** no
 **Suggested commit message:** M9.3: release documentation, demo reset script and final journal
 **Known issues:** Dry runs, projector check, `v1.0-vortexa` tag and the final release checklist remain for the humans.
+
+### [UI] Interface refinement — 2026-10-11 16:10 IST — Owner: Kanak-Agrawal-3008
+**What has changed:** `frontend/src/api.js` (plain-language headline, units, identifier clean-up), `index.css`, `tailwind.config.js`, and the components `TopBar`, `ChatPanel`, `Console`, `DecisionCard`, `ThreeStageStrip`, `Seal`, `Toast`, plus colour and wording changes in the overlays and the Attack Lab page.
+**Why:** The first version has used emoji as icons, repeated the same explanation two or three times on a card, shown raw identifiers and amounts, and given no view of how far an approval has progressed. The team has wanted a calmer, more legible console for judges seated at a distance.
+**How:** Emoji have been removed in favour of text. Each decision now opens with one sentence built only from the measured effect ("ops-agent would pay 40 invoices (₹40,000)"), followed by a single verdict line with the rule and the verdict a request-level gate would have given. The strip has been restyled as three plain columns (Asked for, Sandbox measured, Real database) with a dashed line for the limit. A four-step progress line (Requested, Approved n of m, Sealed, Executed or Voided) has been added, the acting user is chosen next to the buttons that need it, technical detail sits behind a Details control, notifications moved to the bottom right so they no longer cover the action list, and the scenarios list carries a one-line hint for each story. One neutral dark palette with a single blue accent is used.
+**Tests:** Production build succeeds; checked manually in the browser pane (refund, hospital report and 40-invoice approval screens). No backend change.
+**Deviations from plan:** none
+**Last-moment changes:** no
+**Suggested commit message:** UI: calmer console with plain-language headline, approval progress and no emoji
+**Known issues:** The overlays (changes, sandbox review, audit) have received colour and wording changes only and still deserve a full layout pass.

@@ -3,14 +3,25 @@
 @tailwind utilities;
 
 html, body, #root { height: 100%; }
-body { background: #0b1220; color: #e5e7eb; margin: 0; font-family: system-ui, sans-serif; font-size: 15px; }
+body {
+  background: #0d1117; color: #e6edf3; margin: 0; font-size: 14px; line-height: 1.5;
+  font-family: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-feature-settings: "tnum" 1, "cv11" 1;
+}
+::selection { background: #1f6feb55; }
+:focus-visible { outline: 2px solid #58a6ff; outline-offset: 2px; }
 
 @layer components {
-  .btn { @apply px-3 py-1.5 rounded border border-slate-600 text-sm text-slate-100 hover:bg-slate-800 disabled:opacity-50 disabled:cursor-wait; }
-  .btn-accent { @apply border-cyan-400 text-cyan-200 bg-cyan-950/40 hover:bg-cyan-900/50; }
+  .panel { @apply bg-[#161b22] border border-[#30363d] rounded-md; }
+  .label { @apply text-[11px] uppercase tracking-wider text-[#8b949e]; }
+  .btn { @apply inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-[#30363d] bg-[#21262d] text-[13px] font-medium text-[#e6edf3] hover:bg-[#30363d] disabled:opacity-45 disabled:cursor-not-allowed; }
+  .btn-primary { @apply bg-[#1f6feb] border-[#1f6feb] text-white hover:bg-[#388bfd]; }
+  .btn-quiet { @apply bg-transparent border-transparent text-[#8b949e] hover:text-[#e6edf3] hover:bg-[#21262d]; }
+  .kbd { @apply px-1 rounded border border-[#30363d] text-[11px] text-[#8b949e]; }
 }
 
-.seal-crack { animation: crack 0.6s ease-out; }
-@keyframes crack { 0% { transform: scale(1); } 30% { transform: scale(1.25) rotate(-8deg); } 60% { transform: scale(0.95) rotate(6deg); } 100% { transform: scale(1); } }
-.toast-in { animation: slidein 0.25s ease-out; }
-@keyframes slidein { from { transform: translateX(30px); opacity: 0; } to { transform: none; opacity: 1; } }
+.seal-crack { animation: crack 0.5s ease-out; }
+@keyframes crack { 0% { transform: scale(1); } 35% { transform: scale(1.18) rotate(-6deg); } 70% { transform: scale(0.97) rotate(4deg); } 100% { transform: scale(1); } }
+.toast-in { animation: slidein 0.18s ease-out; }
+@keyframes slidein { from { transform: translateY(8px); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .seal-crack, .toast-in { animation: none; } }

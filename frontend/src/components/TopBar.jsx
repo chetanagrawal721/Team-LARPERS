@@ -1,41 +1,37 @@
-import { USERS, getUser, setUser } from "../api";
+const DOMAINS = [["bank", "Bank"], ["hospital", "Hospital"], ["shop", "Shop"]];
 
-const DOMAINS = [
-  { id: "bank", icon: "🏦", tint: "#3b82f6" },
-  { id: "hospital", icon: "🏥", tint: "#14b8a6" },
-  { id: "shop", icon: "🛒", tint: "#f97316" },
-];
+const Mark = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
+    <circle cx="12" cy="12" r="9.5" fill="none" stroke="#58a6ff" strokeWidth="2" />
+    <path d="M7.5 12.3l3 3 6-6.5" fill="none" stroke="#58a6ff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
 
-export default function TopBar({ domain, org, onDomain, ai, onAi, page, onPage, online, onUser, onAudit }) {
+export default function TopBar({ domain, org, onDomain, ai, onAi, page, onPage, online, onAudit }) {
+  const tab = (active) => `px-3 py-1.5 text-[13px] border-b-2 -mb-px ${active ? "border-[#58a6ff] text-white" : "border-transparent text-[#8b949e] hover:text-[#e6edf3]"}`;
   return (
-    <header className="flex items-center gap-4 px-5 py-3 border-b border-slate-800 bg-slate-950">
-      <div className="text-xl font-bold text-accent">🔏 SEALGATE</div>
-      <nav className="flex gap-1">
-        {[["gate", "Live Gate"], ["lab", "Attack Lab"]].map(([id, label]) => (
-          <button key={id} onClick={() => onPage(id)}
-                  className={`px-3 py-1 rounded ${page === id ? "bg-slate-800 text-white" : "text-slate-400 hover:text-white"}`}>{label}</button>
-        ))}
+    <header className="flex items-end gap-6 px-5 pt-3 border-b border-[#30363d] bg-[#0d1117]">
+      <div className="flex items-center gap-2 pb-2.5"><Mark /><span className="font-semibold tracking-wide">SEALGATE</span></div>
+      <nav className="flex" aria-label="Pages">
+        <button className={tab(page === "gate")} onClick={() => onPage("gate")}>Live gate</button>
+        <button className={tab(page === "lab")} onClick={() => onPage("lab")}>Attack lab</button>
       </nav>
-      <div className="flex items-center gap-1 ml-4">
-        {DOMAINS.map((d) => (
-          <button key={d.id} onClick={() => onDomain(d.id)} title={d.id}
-                  className="px-3 py-1 rounded border text-lg"
-                  style={{ borderColor: domain === d.id ? d.tint : "#334155", background: domain === d.id ? d.tint + "33" : "transparent" }}>{d.icon}</button>
+      <div className="flex items-center gap-1 pb-2" role="group" aria-label="Organisation">
+        <span className="text-[12px] text-[#8b949e] mr-1">Organisation</span>
+        {DOMAINS.map(([id, label]) => (
+          <button key={id} onClick={() => onDomain(id)} aria-pressed={domain === id}
+                  className={`px-2.5 py-1 rounded-md text-[13px] ${domain === id ? "bg-[#21262d] text-white border border-[#30363d]" : "text-[#8b949e] hover:text-white border border-transparent"}`}>{label}</button>
         ))}
-        <span className="ml-2 text-slate-300">{org}</span>
+        <span className="text-[12px] text-[#8b949e] ml-2">{org}</span>
       </div>
-      <div className="ml-auto flex items-center gap-4 text-sm">
-        <button className="btn" onClick={onAudit}>Audit log</button>
-        <label className="flex items-center gap-1 text-slate-400">acting as
-          <select className="bg-slate-900 border border-slate-700 rounded px-1 py-0.5 text-slate-100" defaultValue={getUser().name}
-                  onChange={(e) => { setUser(e.target.value); onUser && onUser(e.target.value); }}>
-            {USERS.map((u) => <option key={u}>{u}</option>)}
-          </select>
-        </label>
-        <button onClick={onAi} className="flex items-center gap-1">
-          <span className={`inline-block w-2.5 h-2.5 rounded-full ${ai ? "bg-emerald-400" : "bg-slate-500"}`} /> AI {ai ? "on" : "off"}
+      <div className="ml-auto flex items-center gap-4 pb-2 text-[13px]">
+        <button className="btn btn-quiet" onClick={onAudit}>Audit log</button>
+        <button className="btn btn-quiet" onClick={onAi} title="AI can only make decisions stricter. Turn it off and nothing gets less safe.">
+          AI checks: <b className={ai ? "text-[#56d364]" : "text-[#8b949e]"}>{ai ? "on" : "off"}</b>
         </button>
-        <span className={online ? "text-emerald-400" : "text-rose-400"}>{online ? "● live" : "● offline"}</span>
+        <span className={`flex items-center gap-1.5 ${online ? "text-[#8b949e]" : "text-[#ff7b72]"}`}>
+          <span className={`w-2 h-2 rounded-full ${online ? "bg-[#3fb950]" : "bg-[#f85149]"}`} />{online ? "Connected" : "Disconnected"}
+        </span>
       </div>
     </header>
   );

@@ -5,12 +5,17 @@ const DEMO_TOKENS = (() => {
   try { return JSON.parse(import.meta.env.VITE_DEMO_TOKENS || "{}"); } catch { return {}; }
 })();
 
-export const USERS = ["priya", "rahul", "anita", "meera"];
+export const USERS = [
+  { id: "priya", label: "Priya · ops officer" },
+  { id: "rahul", label: "Rahul · branch manager" },
+  { id: "anita", label: "Anita · compliance" },
+  { id: "meera", label: "Meera · staff (cannot approve)" },
+];
 
 let current = { name: "priya", token: DEMO_TOKENS["priya"] || "" };
 try {
   const saved = JSON.parse(sessionStorage.getItem("sg_user") || "null");
-  if (saved) current = saved;
+  if (saved) current = { name: saved.name, token: DEMO_TOKENS[saved.name] ?? saved.token };
 } catch { /* storage unavailable */ }
 
 export function getUser() { return current; }
@@ -35,9 +40,12 @@ export async function call(path, { method = "GET", body, auth = false } = {}) {
 
 export const rupees = (minor) => {
   const r = Math.round((minor || 0) / 100);
-  if (r >= 100000) return `₹${(r / 100000).toFixed(r >= 1000000 ? 1 : 2).replace(/\.?0+$/, "")} lakh`;
+  if (r >= 10000000) return `₹${(r / 10000000).toFixed(2).replace(/\.?0+$/, "")} crore`;
+  if (r >= 100000) return `₹${(r / 100000).toFixed(2).replace(/\.?0+$/, "")} lakh`;
   return `₹${r.toLocaleString("en-IN")}`;
 };
+
+export const num = (n) => Number(n || 0).toLocaleString("en-IN");
 
 export const rowCount = (effect) =>
   Object.values(effect?.rows || {}).reduce((a, v) => a + v.length, 0);
@@ -57,4 +65,41 @@ export function distinctPeople(effect) {
   return set.size;
 }
 
-export const VERDICT_COLOR = { ALLOW: "text-emerald-400", HOLD: "text-amber-400", BLOCK: "text-rose-400", VOID: "text-rose-400", DONE: "text-emerald-400" };
+const VERB = { refund: "refund", transfer: "pay", update_contact: "update contact details for", payee_change: "change the bank account of",
+  grant_role: "grant a role to", send_report: "send a report covering", delete_record: "delete", write_file: "write a file from",
+  send_email: "email", lookup: "look up" };
+const NOUN = { refunds: "charge", invoices: "invoice", customers: "customer record", vendors: "vendor", disclosed: "patient", recipients: "recipient",
+  files: "file", patients: "patient record", grants: "role grant" };
+
+// A plain sentence describing what the action would really do, built from the measured effect only.
+export function headline(d) {
+  const e = d.effect;
+  const who = d.agent;
+  if (!e) return `${who} tried to ${d.action}`;
+  const { table, rows } = primary(e);
+  const n = rows.length;
+  const noun = (NOUN[table] || table || "item") + (n === 1 ? "" : "s");
+  const money = e.amount_minor > 0 ? ` (${rupees(e.amount_minor)})` : "";
+  const people = distinctPeople(e);
+  const across = people > 1 && table !== "disclosed" ? ` across ${people} customers` : "";
+  return `${who} would ${VERB[d.action] || d.action} ${num(n)} ${noun}${across}${money}`;
+}
+
+export function scopeSentence(d) {
+  const sc = d.envelope?.scope || {};
+  const parts = Object.entries(sc).map(([k, v]) => `${k} ${v}`);
+  return parts.length ? `The request named ${parts.join(", ")}.` : "";
+}
+
+export const unitOf = (table) => NOUN[table] || (table || "row").replace(/s$/, "");
+export const plural = (n, word) => `${num(n)} ${word}${n === 1 ? "" : "s"}`;
+
+// Make backend identifiers readable in running text.
+const WORDS = [[/external_email/g, "an external email address"], [/internal_email/g, "an internal email address"], [/payment_rail/g, "the payment rail"],
+  [/shared_drive/g, "the shared drive"], [/rbi_reporting/g, "regulatory reporting"], [/UNTRUSTED/g, "untrusted"]];
+export const tidy = (text = "") => WORDS.reduce((t, [re, w]) => t.replace(re, w), text);
+
+export const STATUS_TEXT = {
+  allowed: "Allowed", done: "Executed", pending: "Waiting for approval", approved: "Approved and sealed",
+  blocked: "Blocked", void: "Voided", rejected: "Rejected", shadow: "Held in sandbox",
+};

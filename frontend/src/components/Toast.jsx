@@ -1,20 +1,22 @@
-// Top-right popups for HOLD / BLOCK decisions (and operation results).
-export default function Toasts({ items, onDismiss, onReview, onSafe }) {
+import { tidy } from "../api";
+
+const TONE = { HOLD: "#d29922", BLOCK: "#f85149", error: "#f85149", ok: "#3fb950" };
+const TITLE = { HOLD: "Needs approval", BLOCK: "Blocked", error: "Not allowed", ok: "Done" };
+
+// Compact notifications, bottom right so they never cover the live list.
+export default function Toasts({ items, onDismiss, onReview }) {
   return (
-    <div className="fixed top-16 right-4 z-40 space-y-2 w-96">
+    <div className="fixed bottom-4 right-4 z-40 space-y-2 w-[360px]" role="status" aria-live="polite">
       {items.map((t) => (
-        <div key={t.key} className={`rounded-lg border p-3 shadow-xl bg-slate-900 toast-in ${t.level === "HOLD" ? "border-amber-500/60" : t.level === "BLOCK" ? "border-rose-500/60" : t.level === "error" ? "border-rose-500/60" : "border-slate-600"}`}>
-          <div className="flex justify-between text-sm">
-            <b>{t.level === "HOLD" ? "🟡 Approval needed" : t.level === "BLOCK" ? "🔴 Blocked" : t.level === "error" ? "⚠ Refused" : "✓"}</b>
-            <button onClick={() => onDismiss(t.key)} aria-label="dismiss">✕</button>
-          </div>
-          <div className="text-sm mt-1">{t.text}</div>
-          {t.decisionId && (
-            <div className="flex gap-2 mt-2">
-              <button className="btn" onClick={() => onReview(t.decisionId)}>Review</button>
-              {t.safe && <button className="btn btn-accent" onClick={() => onSafe(t.decisionId)}>Approve safe version</button>}
+        <div key={t.key} className="panel toast-in px-3 py-2.5 shadow-lg" style={{ borderLeft: `3px solid ${TONE[t.level] || "#8b949e"}` }}>
+          <div className="flex justify-between items-start gap-3">
+            <div className="min-w-0">
+              <div className="text-[12px] font-semibold" style={{ color: TONE[t.level] }}>{TITLE[t.level] || t.level}</div>
+              <div className="text-[13px] text-[#c9d1d9] break-words">{tidy(t.text)}</div>
             </div>
-          )}
+            <button className="text-[#8b949e] hover:text-white text-[13px]" onClick={() => onDismiss(t.key)} aria-label="Dismiss">Close</button>
+          </div>
+          {t.decisionId && <button className="btn mt-2" onClick={() => onReview(t.decisionId)}>Show</button>}
         </div>
       ))}
     </div>

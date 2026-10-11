@@ -1,12 +1,13 @@
-// Seal icon: intact (cyan), cracked (red, animated) or not yet issued (grey).
-export default function Seal({ state = "none", size = 44 }) {
-  const color = state === "intact" ? "#22d3ee" : state === "cracked" ? "#fb7185" : "#64748b";
+// Seal mark: intact (blue), cracked (red, animated) or not yet issued (grey, dashed).
+export default function Seal({ state = "none", size = 40 }) {
+  const color = state === "intact" ? "#58a6ff" : state === "cracked" ? "#f85149" : "#6e7681";
   return (
-    <svg width={size} height={size} viewBox="0 0 48 48" className={state === "cracked" ? "seal-crack" : ""} aria-label={`seal ${state}`}>
-      <circle cx="24" cy="24" r="20" fill="none" stroke={color} strokeWidth="3" strokeDasharray={state === "none" ? "4 4" : "0"} />
-      <path d="M16 24l6 6 11-12" fill="none" stroke={color} strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"
-            style={{ opacity: state === "cracked" ? 0 : 1 }} />
-      {state === "cracked" && <path d="M24 5l-4 12 7 5-6 8 3 9" fill="none" stroke={color} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />}
+    <svg width={size} height={size} viewBox="0 0 48 48" role="img" aria-label={`Seal ${state === "none" ? "not issued" : state}`}
+         className={state === "cracked" ? "seal-crack" : ""}>
+      <circle cx="24" cy="24" r="19" fill="none" stroke={color} strokeWidth="2.5" strokeDasharray={state === "none" ? "3 4" : "0"} />
+      {state === "cracked"
+        ? <path d="M25 6l-5 13 8 6-7 9 4 8" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+        : <path d="M16 24.5l5.5 5.5L32 18" fill="none" stroke={color} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" opacity={state === "none" ? 0.4 : 1} />}
     </svg>
   );
 }
