@@ -28,9 +28,9 @@
 | 5.1 | AI client, validation, fallback | atharvg44 | ☑ |
 | 5.2 | Envelope from instruction, claim-vs-effect | atharvg44 | ☑ |
 | 5.3 | Paraphrase sentry, explanations | atharvg44 | ☑ |
-| 6.1 | Smallest safe version | chetanagrawal721 | ☐ |
-| 6.2 | Shadow Mode | chetanagrawal721 | ☐ |
-| 6.3 | Replay and honeytoken freeze | aryanketkar-15 | ☐ |
+| 6.1 | Smallest safe version | chetanagrawal721 | ☑ |
+| 6.2 | Shadow Mode | chetanagrawal721 | ☑ |
+| 6.3 | Replay and honeytoken freeze | aryanketkar-15 | ☑ |
 | 7.1 | Agents, tools, scenarios | atharvg44 | ☐ |
 | 7.2 | Hospital and e-commerce domains | chetanagrawal721 | ☐ |
 | 8.1 | Layout, chat, live events | Kanak-Agrawal-3008 | ☐ |
@@ -248,3 +248,33 @@
 **Last-moment changes:** no
 **Suggested commit message:** M5.3: best-effort paraphrase sentry and approver explanations
 **Known issues:** The sentry is best-effort by design and is listed as a known limitation.
+
+### [6.1] Smallest safe version — 2026-10-11 14:17 IST — Owner: chetanagrawal721
+**What has changed:** `gateway/safe_version.py`, `reduce()` hooks and an `only` argument in `gateway/resolvers/bank.py`, `gateway/resolver.py`, `gateway/engine.py` (dry-run analysis, offer and accept flow), `gateway/main.py` (`POST /safe-version/{id}`), tests in `tests/test_phase6.py`.
+**Why:** Blocked actions have had to become actionable: the minimal change to the resolved effect that makes the decision safer is offered, re-checked and re-sealed.
+**How:** Each resolver declares how its effect can be reduced (explicit primary-key lists, never SQL text): the refund keeps only rows inside the request's customer scope up to the limits; the batch transfer keeps at most ten invoices. The reduced action is run through the full gate in a dry run and is offered only if it is strictly safer (a better verdict, or the same HOLD at a lower tier). It is never offered for R01-R04, SECRET data, budget holds or protected-class holds, and never as a split into several actions. Accepting creates a new decision linked to the original, which is sealed and executed.
+**Tests:** T6.1-1..7 covered by `tests/test_phase6.py` (7 passed).
+**Deviations from plan:** none
+**Last-moment changes:** no
+**Suggested commit message:** M6.1: deterministic smallest-safe-version engine with re-sealing
+**Known issues:** none
+
+### [6.2] Shadow Mode — 2026-10-11 14:17 IST — Owner: chetanagrawal721
+**What has changed:** `gateway/shadow.py`, `gateway/engine.py` (routing), `gateway/main.py` (`GET /shadow/{sid}`, `POST /promote/{sid}`, `POST /discard/{sid}`), tests in `tests/test_phase6.py`.
+**Why:** Approval fatigue has been addressed: a held, suspicious agent keeps working in a sandbox and a human reviews the total result once.
+**How:** A HOLD caused by untrusted input (R07) creates a session with an immutable base copy and a working copy of the database; the trigger and all later actions of that agent are applied to the working copy and recorded with their arguments, effects and pre-image versions. Promotion replays the recorded actions inside one transaction on the real database, requires each step's pre-image to be unchanged and requires the real row-level diff to equal the sandbox diff; otherwise it rolls back with a typed drift. Promotion follows separation of duties and needs two promoters for a tier-3 session. Sandbox payments and messages are never delivered.
+**Tests:** T6.2-1..8 covered by `tests/test_phase6.py` (10 passed); discard leaves the real database hash unchanged.
+**Deviations from plan:** none
+**Last-moment changes:** no
+**Suggested commit message:** M6.2: Shadow Mode with recorded steps and diff-verified promotion
+**Known issues:** none
+
+### [6.3] Replay and honeytoken freeze — 2026-10-11 14:17 IST — Owner: aryanketkar-15
+**What has changed:** `gateway/replay.py`, `gateway/main.py` (`POST /audit/replay/{seq}`, `POST /agents/{agent}/unfreeze`, `GET /agents`), tests in `tests/test_phase6.py`.
+**Why:** Decisions have had to be provably reproducible from the log, and agents that call a decoy action have had to be stopped until a human intervenes.
+**How:** Replay re-runs the pure `decide()` function on the stored inputs against the stored policy version and refuses to run when the audit chain is broken; it never touches a live database. The freeze flag, set on a honeytoken call in M3.2, is cleared only by an authorised human.
+**Tests:** T6.3-1..6 covered by `tests/test_phase6.py`; ten random decisions replay identically; full suite 166 passed.
+**Deviations from plan:** none
+**Last-moment changes:** no
+**Suggested commit message:** M6.3: decision replay against stored policy and honeytoken freeze
+**Known issues:** none

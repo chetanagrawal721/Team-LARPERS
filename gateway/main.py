@@ -2,7 +2,7 @@ from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import ValidationError
 
-from . import ai, approvals, audit, outbox
+from . import ai, approvals, audit, outbox, replay, safe_version, shadow
 from .approvals import GateError
 from .engine import Engine
 from .schemas import ApprovalRequest
@@ -117,3 +117,43 @@ def ai_toggle(enabled: bool | None = None):
 @app.get("/ai/status")
 def ai_status():
     return {"enabled": ai.enabled(), "provider": ai.provider(), "available": ai.available()}
+
+
+@app.post("/safe-version/{decision_id}")
+def accept_safe_version(decision_id: str, x_user: str | None = Header(None), x_token: str | None = Header(None)):
+    return safe_version.accept(engine(), human(x_user, x_token), decision_id)
+
+
+@app.get("/shadow/{sid}")
+def shadow_view(sid: str):
+    return shadow.view(engine(), sid)
+
+
+@app.post("/promote/{sid}")
+def shadow_promote(sid: str, x_user: str | None = Header(None), x_token: str | None = Header(None)):
+    return shadow.promote(engine(), human(x_user, x_token), sid)
+
+
+@app.post("/discard/{sid}")
+def shadow_discard(sid: str, x_user: str | None = Header(None), x_token: str | None = Header(None)):
+    return shadow.discard(engine(), human(x_user, x_token), sid)
+
+
+@app.post("/audit/replay/{seq}")
+def audit_replay(seq: int):
+    return replay.replay(engine(), seq)
+
+
+@app.post("/agents/{agent}/unfreeze")
+def agent_unfreeze(agent: str, x_user: str | None = Header(None), x_token: str | None = Header(None)):
+    u = human(x_user, x_token)
+    if not u.get("can_approve"):
+        raise GateError(403, "user is not authorised")
+    engine().unfreeze(agent)
+    return {"agent": agent, "frozen": False}
+
+
+@app.get("/agents")
+def agents():
+    e = engine()
+    return [{"agent": a, "frozen": e.is_frozen(a)} for a in e.policy.agents]

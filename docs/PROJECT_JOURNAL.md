@@ -228,9 +228,9 @@ Additions to the suite after pre-registration must be logged in §11 with the re
 - [ ] **Phase 5 checkpoint**
 
 ### Phase 6 — Signature features
-- [ ] 6.1 Smallest safe version — chetanagrawal721
-- [ ] 6.2 Shadow Mode — chetanagrawal721
-- [ ] 6.3 Replay and honeytoken freeze — aryanketkar-15
+- [x] 6.1 Smallest safe version — chetanagrawal721
+- [x] 6.2 Shadow Mode — chetanagrawal721
+- [x] 6.3 Replay and honeytoken freeze — aryanketkar-15
 - [ ] **Phase 6 checkpoint**
 
 ### Phase 7 — Agents & domains
@@ -304,6 +304,9 @@ One line per milestone push, decision, or notable event. Newest at the bottom.
 | 2026-10-11 14:13 | atharvg44 | Milestone | M5.1 — the escalate-only AI client with schema validation and fallback has been implemented. | |
 | 2026-10-11 14:13 | atharvg44 | Milestone | M5.2 — the clamped AI envelope and claim-vs-effect escalation have been implemented. | |
 | 2026-10-11 14:13 | atharvg44 | Milestone | M5.3 — the best-effort paraphrase sentry and approver explanations have been implemented. | |
+| 2026-10-11 14:17 | chetanagrawal721 | Milestone | M6.1 — the deterministic smallest-safe-version engine has been implemented. | |
+| 2026-10-11 14:17 | chetanagrawal721 | Milestone | M6.2 — Shadow Mode with diff-verified promotion has been implemented. | |
+| 2026-10-11 14:17 | aryanketkar-15 | Milestone | M6.3 — decision replay and the honeytoken freeze with unfreeze have been implemented. | |
 
 **Entry types:** Decision · Design · Review · Milestone · Fix · Change · Test · Result · Docs
 
