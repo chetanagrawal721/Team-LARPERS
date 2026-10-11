@@ -1,0 +1,6 @@
+#!/bin/sh
+ALLOWED='aryanketkar-15|Kanak-Agrawal-3008|chetanagrawal721|atharvg44'
+if grep -iE '^co-authored-by:' "$1" | grep -viE "$ALLOWED" >/dev/null; then
+  echo "✖ Commit rejected: co-author trailer for someone outside the team."
+  exit 1
+fi
