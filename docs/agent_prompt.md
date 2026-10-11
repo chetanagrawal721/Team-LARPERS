@@ -17,7 +17,15 @@ After a tool call the agent receives `TOOL RESULT (from the SEALGATE gateway): {
 - It chooses the tool arguments. This is where misinterpretation can happen in real use, for example choosing `match: "batch"` when asked for one customer. The gateway measures the real effect regardless of what the agent claims.
 - It cannot execute anything, see the database, approve anything, or bypass a block.
 
-## Modes
-- **Live LLM** (default when `AI_PROVIDER`, `AI_MODEL` and `AI_API_KEY` are set): every typed request goes to the model.
-- **Scripted demo**: fixed routines with a deliberately mis-scoped agent, so the "agent says one, sandbox measures many" gap is reproducible without a model.
-- If the model is unreachable, the agent says so and falls back to the scripted router when the request matches one; otherwise it tells the user it cannot act.
+## How a request flows (nothing starts on its own)
+1. The model reads the request (and any pasted document) and decides: answer, ask a question, or call a tool.
+2. A tool call is checked first: required parameters present, values from the allowed choices, and every identifier (customer, vendor, patient, e-mail) must appear in the request or the document. A made-up identifier is rejected and the model is told to ask instead.
+3. The agent that owns the tool **asks for access in the chat**. A person grants or denies. Nothing has reached the gateway yet.
+4. On grant, the agent signs and sends the proposal. The gateway measures it in a sandbox and decides ALLOW, HOLD or BLOCK.
+5. Even ALLOW waits for a person to approve the measured effect (rule R13). A blocked proposal is never executed; a person can mark it as reviewed or use the smallest safe version.
+6. The agent waits for that human decision and then tells the user what happened.
+
+The gateway receives only the user's request as the instruction (never the pasted document), so a buried instruction cannot widen what counts as "asked for".
+
+## Models and reliability
+The model is called with retries and back-off on rate limits, server errors and timeouts. If a hosted provider keeps failing, the next one is used (default fallback: a local Ollama model). Every retry and switch is shown in the live activity. If every provider fails the agent says so and does nothing; there is no scripted fallback.
