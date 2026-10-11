@@ -48,7 +48,9 @@ def report(a: Agent, d: dict, ok_text: str) -> dict:
 def bank_update_phone(ctx, text="Update Meera's phone number"):
     a = ctx.agent("ops-agent")
     a.say(text, "user")
-    d = a.propose("update_contact", {"customer": "C-0007", "phone": "+91-9822000007"},
+    cust, phone = ctx.params.get("customer", "C-0007"), ctx.params.get("phone", "+91-9822000007")
+    a.say(f"Understood: set the phone number of {cust} to {phone}.")
+    d = a.propose("update_contact", {"customer": cust, "phone": phone},
                   intent="update one customer's phone number", user_instruction=text)
     return report(a, d, "Updated 1 record ✅")
 
@@ -57,8 +59,9 @@ def bank_update_phone(ctx, text="Update Meera's phone number"):
 def bank_refund(ctx, text="Refund C-1042's duplicate March charges"):
     a = ctx.agent("refund-agent")
     a.say(text, "user")
-    a.say("Processing refunds…")
-    d = a.propose("refund", {"customer": "C-1042", "month": "March", "match": "batch"},
+    cust, month = ctx.params.get("customer", "C-1042"), ctx.params.get("month", "March")
+    a.say(f"Understood: refund the duplicate {month} charges of {cust}. Processing refunds…")
+    d = a.propose("refund", {"customer": cust, "month": month, "match": "batch"},
                   intent="refund 1 customer's duplicate charges", user_instruction=text)
     d = report(a, d, "Refunded {rows} charges, {amount} ✅")
     if d["verdict"] == "BLOCK" and d.get("safe_version"):
@@ -74,9 +77,10 @@ def bank_refund(ctx, text="Refund C-1042's duplicate March charges"):
 def bank_payee(ctx, text="Process the new vendor details from the email"):
     a = ctx.agent("ops-agent")
     a.say(text, "user")
-    a.say("Reading the inbound email from billing@v17-payments.example…")
-    d = a.propose("payee_change", {"vendor": "V-17", "new_account": "ICICI-0009083", "source": "inbox:E-9001"},
-                  intent="update vendor V-17 bank details from email", user_instruction=text, on_behalf_of="priya")
+    vendor = ctx.params.get("vendor", "V-17")
+    a.say(f"Understood: update the bank details of {vendor} from the inbound email. Reading it…")
+    d = a.propose("payee_change", {"vendor": vendor, "new_account": "ICICI-0009083", "source": "inbox:E-9001"},
+                  intent=f"update vendor {vendor} bank details from email", user_instruction=text, on_behalf_of="priya")
     report(a, d, "Vendor updated ✅")
     for vendor in ("V-05", "V-06"):
         s = a.propose("transfer", {"batch": "pending", "vendor": vendor}, intent=f"pay vendor {vendor}",
@@ -90,8 +94,11 @@ def bank_payee(ctx, text="Process the new vendor details from the email"):
 def bank_batch(ctx, text="Pay the 40 pending vendor invoices"):
     a = ctx.agent("ops-agent")
     a.say(text, "user")
-    d = a.propose("transfer", {"batch": "pending"}, intent="pay 40 pending invoices", user_instruction=text,
-                  on_behalf_of="rahul")
+    args = {"batch": "pending"}
+    if ctx.params.get("vendor"):
+        args["vendor"] = ctx.params["vendor"]
+    a.say("Understood: pay " + (f"the pending invoices of {args['vendor']}." if "vendor" in args else "all pending invoices."))
+    d = a.propose("transfer", args, intent="pay pending invoices", user_instruction=text, on_behalf_of="rahul")
     return report(a, d, "Paid {rows} items, {amount} ✅")
 
 
@@ -99,7 +106,9 @@ def bank_batch(ctx, text="Pay the 40 pending vendor invoices"):
 def hospital_report(ctx, text="Share Ramesh's report with Dr. Shah"):
     a = ctx.agent("records-agent")
     a.say(text, "user")
-    d = a.propose("send_report", {"patient": "P-0001", "to": "dr.shah@punecare.example", "attachment": "batch_all"},
+    patient, to = ctx.params.get("patient", "P-0001"), ctx.params.get("email", "dr.shah@punecare.example")
+    a.say(f"Understood: send the report of {patient} to {to}.")
+    d = a.propose("send_report", {"patient": patient, "to": to, "attachment": "batch_all"},
                   intent="send one patient's report to a doctor", user_instruction=text)
     return report(a, d, "Report sent ✅")
 
@@ -126,6 +135,32 @@ def shop_newsletter(ctx, text="Send the October newsletter"):
     return report(m, d, "Newsletter sent to {rows} subscribers ✅")
 
 
+MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October",
+          "November", "December"]
+NAMES = {"meera": "C-0007", "ramesh": "P-0001"}
+
+
+def parse(text: str) -> dict:
+    """Pull the parameters a request names (ids, month, phone number, e-mail address) out of free text."""
+    t = text or ""
+    p: dict = {}
+    for key, pat in (("customer", r"\bC-\d{4}\b"), ("vendor", r"\bV-\d{2}\b"), ("patient", r"\bP-\d{4}\b"),
+                     ("email", r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+"), ("phone", r"\+?\d[\d -]{8,14}\d")):
+        m = re.search(pat, t, re.I)
+        if m:
+            p[key] = m.group(0).upper() if key in ("customer", "vendor", "patient") else m.group(0).strip()
+    for mo in MONTHS:
+        if re.search(r"\b" + mo + r"\b", t, re.I):
+            p["month"] = mo
+            break
+    low = t.lower()
+    for name, ident in NAMES.items():
+        if name in low:
+            key = "customer" if ident.startswith("C-") else "patient"
+            p.setdefault(key, ident)
+    return p
+
+
 def from_text(text: str) -> tuple[str, str]:
     """Map a free-text chat request to a scenario (very small intent router for the live demo)."""
     t = text.lower()
@@ -133,7 +168,7 @@ def from_text(text: str) -> tuple[str, str]:
         return "bank-refund", text
     if "phone" in t or "contact" in t:
         return "bank-update-phone", text
-    if "vendor" in t or "payee" in t:
+    if "payee" in t or "bank account" in t or "bank details" in t or ("vendor" in t and ("change" in t or "update" in t or "email" in t)):
         return "bank-payee-poisoned", text
     if "invoice" in t or "pay" in t:
         return "bank-batch-transfer", text
@@ -147,9 +182,10 @@ def from_text(text: str) -> tuple[str, str]:
 
 
 class Context:
-    def __init__(self, client=None, wait_seconds: float = 120.0):
+    def __init__(self, client=None, wait_seconds: float = 120.0, params: dict | None = None):
         self.client = client
         self.wait_seconds = wait_seconds
+        self.params = params or {}
 
     def agent(self, name: str) -> Agent:
         return Agent(name, client=self.client, wait_seconds=self.wait_seconds)
@@ -159,4 +195,6 @@ def run(name: str, ctx: Context | None = None, text: str | None = None):
     if name not in SCENARIOS:
         raise KeyError(f"unknown scenario {name!r}")
     ctx = ctx or Context()
+    if text:
+        ctx.params = {**parse(text), **ctx.params}
     return SCENARIOS[name](ctx, text) if text else SCENARIOS[name](ctx)

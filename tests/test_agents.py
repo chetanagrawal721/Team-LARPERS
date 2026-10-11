@@ -111,3 +111,47 @@ def test_events_bus_replays_history(client):
     client.post("/chat", json={"from": "agent", "text": "hello"})
     i, ev = BUS.recent(1)[0]
     assert "event: chat" in frame(i, ev) and "hello" in frame(i, ev)
+
+
+# ---------------- typed requests must be honoured, not replaced by a canned story ----------------
+def test_parse_extracts_the_details_named():
+    p = scenarios.parse("Refund C-2210's duplicate April charges")
+    assert p["customer"] == "C-2210" and p["month"] == "April"
+    assert scenarios.parse("Pay vendor v-05's pending invoices")["vendor"] == "V-05"
+    assert scenarios.parse("Update Meera's phone to +91-9811122233")["customer"] == "C-0007"
+    assert scenarios.parse("Update Meera's phone to +91-9811122233")["phone"] == "+91-9811122233"
+    assert scenarios.parse("Share P-0100's report with dr.menon@punecare.example")["email"] == "dr.menon@punecare.example"
+
+
+def test_typed_refund_uses_the_customer_and_month_typed(client):
+    d = scenarios.run("bank-refund", Context(client=client, wait_seconds=0), text="Refund C-2210's duplicate March charges")
+    assert d["envelope"]["scope"] == {"customer": "C-2210", "month": "March"}
+    assert any("C-2210" in t for t in chats())
+
+
+def test_typed_phone_update_changes_the_number_typed(client):
+    d = scenarios.run("bank-update-phone", Context(client=client, wait_seconds=0),
+                      text="Update Meera's phone number to +91-9811122233")
+    assert d["status"] == "done"
+    from gateway import main
+    c = main.engine().real_conn()
+    assert c.execute("SELECT phone FROM customers WHERE id='C-0007'").fetchone()[0] == "+91-9811122233"
+
+
+def test_typed_vendor_payment_is_limited_to_that_vendor(client):
+    d = scenarios.run("bank-batch-transfer", Context(client=client, wait_seconds=0), text="Pay the pending invoices of vendor V-05")
+    assert d["effect"]["rows"]["invoices"] and len(d["effect"]["rows"]["invoices"]) == 5
+
+
+def test_demo_chat_passes_the_typed_text_to_the_agent_process(client, monkeypatch):
+    captured = {}
+    monkeypatch.setattr("gateway.main.subprocess.Popen", lambda args, cwd, env: captured.update(args=args) or type("P", (), {"pid": 1})())
+    client.post("/demo/chat", json={"text": "Refund C-2210's duplicate March charges"})
+    assert "--text" in captured["args"] and "Refund C-2210's duplicate March charges" in captured["args"]
+
+
+def test_cli_honours_text_when_scenario_given(monkeypatch):
+    seen = {}
+    monkeypatch.setattr("agents.scenarios.run", lambda name, ctx=None, text=None: seen.update(name=name, text=text))
+    run_main(["bank-refund", "--text", "Refund C-2210's duplicate March charges"])
+    assert seen == {"name": "bank-refund", "text": "Refund C-2210's duplicate March charges"}

@@ -19,7 +19,7 @@ def main(argv=None) -> int:
         print("no matching scenario", file=sys.stderr)
         return 2
     try:
-        scenarios.run(name, text=text if ns.scenario is None else None)
+        scenarios.run(name, text=text)         # the typed request is always passed on, so its details are honoured
     except httpx.HTTPError as e:
         print(f"gateway unreachable: {e}", file=sys.stderr)
         return 1
