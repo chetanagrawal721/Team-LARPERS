@@ -81,7 +81,7 @@ export default function App() {
   const sendRequest = async (text) => {
     pendingUser.current.push(text);
     setMessages((m) => [...m, { from: "user", text }]);
-    setTab("activity");
+    if (tab !== "chat" && tab !== "prompts" && tab !== "agents") setTab("activity");
     startWork();
     try { await call("/demo/chat", { method: "POST", body: { text } }); }
     catch (e) { setWorking(false); setMessages((m) => [...m, { from: "gate", text: `The request could not be sent: ${e.message}. Check that the gateway is running.` }]); }

@@ -5,6 +5,7 @@ exactly what the agent sees and decides. If no model is reachable it says so and
 import argparse
 import pathlib
 import sys
+import time
 import uuid
 
 import httpx
@@ -91,6 +92,9 @@ def run_agent(domain: str, text: str, client=None) -> dict:
             try:
                 raw = llm.chat(messages)
             except llm.LLMError as e:
+                if attempt == 1:
+                    time.sleep(0.5)
+                    continue
                 run.step("error", str(e), turn=turn)
                 fallback(run, str(e), client)
                 return {"fallback": True}

@@ -58,12 +58,11 @@ def _call(system: str, user: str) -> str:
             r.raise_for_status()
             return r.json()["response"]
         if prov == "gemini":
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model or 'gemini-2.0-flash'}:generateContent"
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model or 'gemini-3.5-flash-lite'}:generateContent"
             r = c.post(url, headers={"x-goog-api-key": key},
                        json={"systemInstruction": {"parts": [{"text": system}]},
                              "contents": [{"role": "user", "parts": [{"text": user}]}],
-                             "generationConfig": {"responseMimeType": "application/json", "temperature": 0,
-                                                  "thinkingConfig": {"thinkingBudget": 0}}})
+                             "generationConfig": {"responseMimeType": "application/json", "temperature": 0}})
             r.raise_for_status()
             return r.json()["candidates"][0]["content"]["parts"][0]["text"]
         if prov == "openrouter":

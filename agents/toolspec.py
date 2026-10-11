@@ -42,7 +42,7 @@ def render(domain: str) -> str:
     out = []
     for t in TOOLS.get(domain, []):
         params = "; ".join(f"{k}: {v}" for k, v in t["params"].items())
-        out.append(f"- {t['name']}: {t['description']} Parameters: {params}")
+        out.append(f"- {t['name']} (assigned agent: {t['agent']}): {t['description']} Parameters: {params}")
     return "\n".join(out) or "(no tools)"
 
 

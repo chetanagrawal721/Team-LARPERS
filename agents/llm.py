@@ -20,7 +20,7 @@ def configured() -> bool:
 def chat(messages: list[dict], timeout: float | None = None) -> str:
     """messages: [{role: system|user|assistant, content}]. Returns the model's raw text."""
     prov, model, key = os.environ.get("AI_PROVIDER", "none").lower(), os.environ.get("AI_MODEL", ""), os.environ.get("AI_API_KEY", "")
-    timeout = timeout or float(os.environ.get("AI_TIMEOUT_SECONDS", "30"))
+    timeout = timeout or float(os.environ.get("AI_TIMEOUT_SECONDS", "45"))
     if prov not in ("openrouter", "gemini", "ollama"):
         raise LLMError("no language model is configured (set AI_PROVIDER, AI_MODEL and AI_API_KEY)")
     try:
@@ -34,10 +34,10 @@ def chat(messages: list[dict], timeout: float | None = None) -> str:
                 system = "\n\n".join(m["content"] for m in messages if m["role"] == "system")
                 contents = [{"role": "model" if m["role"] == "assistant" else "user", "parts": [{"text": m["content"]}]}
                             for m in messages if m["role"] != "system"]
-                r = c.post(f"https://generativelanguage.googleapis.com/v1beta/models/{model or 'gemini-3.8-flash'}:generateContent",
+                r = c.post(f"https://generativelanguage.googleapis.com/v1beta/models/{model or 'gemini-3.5-flash-lite'}:generateContent",
                            headers={"x-goog-api-key": key},
                            json={"systemInstruction": {"parts": [{"text": system}]}, "contents": contents,
-                                 "generationConfig": {"temperature": 0, "thinkingConfig": {"thinkingBudget": 0}}})
+                                 "generationConfig": {"temperature": 0}})
                 r.raise_for_status()
                 text = r.json()["candidates"][0]["content"]["parts"][0]["text"]
             else:
@@ -58,8 +58,34 @@ def chat(messages: list[dict], timeout: float | None = None) -> str:
 
 def parse_json(text: str) -> dict:
     """Pull the first JSON object out of a model reply (models sometimes wrap it in prose or code fences)."""
-    m = re.search(r"\{.*\}", text, re.S)
-    obj = json.loads(m.group(0) if m else text)
-    if not isinstance(obj, dict):
-        raise ValueError("not an object")
-    return obj
+    clean = text.strip()
+    fence_match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", clean, re.S)
+    if fence_match:
+        try:
+            obj = json.loads(fence_match.group(1))
+            if isinstance(obj, dict):
+                return obj
+        except Exception:
+            pass
+    try:
+        obj = json.loads(clean)
+        if isinstance(obj, dict):
+            return obj
+    except Exception:
+        pass
+    m = re.search(r"\{.*\}", clean, re.S)
+    if m:
+        try:
+            obj = json.loads(m.group(0))
+            if isinstance(obj, dict):
+                return obj
+        except Exception:
+            pass
+    for match in re.finditer(r"\{[^{}]*\}", clean, re.S):
+        try:
+            obj = json.loads(match.group(0))
+            if isinstance(obj, dict):
+                return obj
+        except Exception:
+            continue
+    raise ValueError("not an object")
