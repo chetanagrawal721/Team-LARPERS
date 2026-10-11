@@ -22,9 +22,9 @@
 | 3.1 | Envelope and envelope check | chetanagrawal721 | ☑ |
 | 3.2 | Rules R01–R12, tiers, decide() | chetanagrawal721 | ☑ |
 | 3.3 | Resource-keyed budgets | chetanagrawal721 | ☑ |
-| 4.1 | Approvals and separation of duties | aryanketkar-15 | ☐ |
-| 4.2 | Effect seal with typed drift | aryanketkar-15 | ☐ |
-| 4.3 | One-transaction execution and outbox | aryanketkar-15 | ☐ |
+| 4.1 | Approvals and separation of duties | aryanketkar-15 | ☑ |
+| 4.2 | Effect seal with typed drift | aryanketkar-15 | ☑ |
+| 4.3 | One-transaction execution and outbox | aryanketkar-15 | ☑ |
 | 5.1 | AI client, validation, fallback | atharvg44 | ☐ |
 | 5.2 | Envelope from instruction, claim-vs-effect | atharvg44 | ☐ |
 | 5.3 | Paraphrase sentry, explanations | atharvg44 | ☐ |
@@ -187,4 +187,34 @@
 **Deviations from plan:** none
 **Last-moment changes:** no
 **Suggested commit message:** M3.3: resource-keyed cumulative budgets charged on resolved effect (R08)
+**Known issues:** none
+
+### [4.1] Approvals and separation of duties — 2026-10-11 14:10 IST — Owner: aryanketkar-15
+**What has changed:** `gateway/approvals.py`, `gateway/main.py` (`/approve`, `/reject`, `/status`, `/action`, `/actions`), `tests/test_phase4.py`.
+**Why:** R7: held actions have had to be approved only by authorised humans who are not the requester, and tier-3 actions by two distinct approvers.
+**How:** Authorisation is enforced on the server: users are authenticated by an `X-User` header plus a per-user token from `.env` (demo-only; agents hold no user tokens). The requester is the human the agent acts for. Every refused attempt is written to the audit log. When the required number of distinct approvers is reached the gateway creates the seal.
+**Tests:** T4.1-1..9 covered in `tests/test_phase4.py` (all passed).
+**Deviations from plan:** none
+**Last-moment changes:** no
+**Suggested commit message:** M4.1: approvals with separation of duties and tiered approvers (R7)
+**Known issues:** none
+
+### [4.2] Effect seal with typed drift — 2026-10-11 14:10 IST — Owner: aryanketkar-15
+**What has changed:** `gateway/seal.py`, `gateway/policy_loader.py` (`rules_hash`), tests in `tests/test_phase4.py`.
+**Why:** R6: an approval has had to apply only to the exact measured effect, and any difference has had to void it with a named reason.
+**How:** The seal is an HMAC-signed token over action hash, effect hash, label-path hash, label-catalog version, policy version, state version, requester, tier, approvers, a one-time nonce and an expiry. Components are compared in a fixed order (signature, expiry, replay, args, policy, label, effect, state). The policy version excludes the label catalog so that policy drift and label drift can be told apart.
+**Tests:** T4.2-1..10 covered in `tests/test_phase4.py` (all passed); each drift type produces its own audit entry.
+**Deviations from plan:** none
+**Last-moment changes:** no
+**Suggested commit message:** M4.2: effect-bound seal with typed drift detection (R6)
+**Known issues:** none
+
+### [4.3] One-transaction execution and transactional outbox — 2026-10-11 14:10 IST — Owner: aryanketkar-15
+**What has changed:** `gateway/execute.py`, `gateway/outbox.py`, `gateway/engine.py` (auto-execution of ALLOW through the sealed path, requeue after void), `gateway/main.py` (`/execute`, `/demo/insert-invoices`), tests in `tests/test_phase4.py`.
+**Why:** R6: only what was sealed may run, and irreversible payments and messages may leave only after commit.
+**How:** Execution opens `BEGIN IMMEDIATE` on the real database, re-runs the stored action, diffs the affected rows, compares the fresh effect with the seal and either writes the outbox rows and commits or rolls back. The seal nonce is consumed inside the same transaction. Delivery is a separate worker. ALLOW decisions use an internal seal with no approvers so that all execution shares one code path. A voided action is re-evaluated as a new decision that always needs fresh approval.
+**Tests:** T4.3-1..9 covered in `tests/test_phase4.py`; full suite 122 passed. The real database hash is unchanged after every void and after a simulated crash.
+**Deviations from plan:** The second of two seals over the same rows reports `effect_drift` (the rows are no longer pending) where the playbook expected `state_drift`; both are accepted by the test.
+**Last-moment changes:** no
+**Suggested commit message:** M4.3: one-transaction sealed execution and transactional outbox
 **Known issues:** none

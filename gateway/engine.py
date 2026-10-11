@@ -5,7 +5,7 @@ import pathlib
 import threading
 import uuid
 
-from . import audit, budgets, clock, config, envelope as envelope_mod, registry, resolver, resolvers, verify
+from . import audit, budgets, clock, config, envelope as envelope_mod, execute as execute_mod, registry, resolver, resolvers, seal, verify
 from .db import init_state
 from .decide import baseline_verdict, decide
 from .policy_loader import Policy, load as load_policy
@@ -138,7 +138,24 @@ class Engine:
     def build_envelope(self, p: Proposal) -> Envelope:
         return envelope_mod.default_for(self.policy, p.action, p.args)
 
-    def _analyse(self, p: Proposal, p_raw: dict) -> Decision:
+    def reanalyse(self, rec: dict, parent_id: str) -> Decision:
+        """Evaluate a stored proposal afresh (after a void). The result never auto-executes."""
+        with self.lock:
+            return self._analyse(Proposal(**rec['proposal']), rec['proposal'], parent_id=parent_id, requeue=True)
+
+    def execute(self, decision_id: str) -> Decision:
+        return execute_mod.execute_sealed(self, decision_id)
+
+    def demo_insert_invoices(self, n: int = 3960) -> int:
+        from .seed import bank_seed
+        c = self.real_conn()
+        try:
+            bank_seed.insert_invoices(c, n)
+        finally:
+            c.close()
+        return n
+
+    def _analyse(self, p: Proposal, p_raw: dict, parent_id: str | None = None, requeue: bool = False) -> Decision:
         pol = self.policy
         human = registry.resolve_human(pol, p.agent, p.on_behalf_of)
         honey = pol.is_honeytoken(p.action)
@@ -154,7 +171,7 @@ class Engine:
                "ai": {"escalation": "NONE", "status": "n/a", "reason": ""}}
         early = (not known) or honey or inp["frozen"] or (not inp["permitted"]) or inp["self_change"]
         if early:
-            return self._finish(p, p_raw, human, inp, None, None)
+            return self._finish(p, p_raw, human, inp, None, None, parent_id, requeue)
         did = self.new_id()
         try:
             res = resolvers.get(self.domain, p.action)
@@ -175,11 +192,15 @@ class Engine:
         inp.update(effect=effect.model_dump(), envelope=env.model_dump(), check=chk.model_dump(),
                    budget_exceeded=bud["exceeded"], budget=bud["snapshot"], ai=ai,
                    intent_unverified=bool(p.intent) and ai.get("status") != "ok")
-        return self._finish(p, p_raw, human, inp, measured, did)
+        return self._finish(p, p_raw, human, inp, measured, did, parent_id, requeue)
 
-    def _finish(self, p: Proposal, p_raw: dict, human: str, inp: dict, measured, did: str | None) -> Decision:
+    def _finish(self, p: Proposal, p_raw: dict, human: str, inp: dict, measured, did: str | None,
+                parent_id: str | None = None, requeue: bool = False) -> Decision:
         pol = self.policy
         out = decide(inp, pol)
+        if requeue and out['verdict'] == 'ALLOW':
+            out.update(verdict='HOLD', rule='R10', reason='re-approval required after a voided seal',
+                       approvals_needed=1, rules_fired=['R10'])
         base = baseline_verdict(inp, pol)
         effect = measured.effect if measured else None
         status = {"ALLOW": "allowed", "HOLD": "pending", "BLOCK": "blocked"}[out["verdict"]]
@@ -200,7 +221,18 @@ class Engine:
                    "meta": meta}
         audit.append(self.state, d.created_ts, p.agent, p.action, payload, d.verdict, d.rule, d.decision_path,
                      pol.hash)
-        self.save_decision(d, p_raw, requester=human, meta=meta)
+        self.save_decision(d, p_raw, requester=human, meta=meta, parent_id=parent_id)
         self.emit("decision", d.id, verdict=d.verdict, rule=d.rule, reason=d.reason, agent=p.agent,
                   action=p.action, tier=d.tier)
+        if d.verdict == "ALLOW":
+            self._auto_execute(d, p, human, meta)
         return d
+
+    def _auto_execute(self, d: Decision, p: Proposal, human: str, meta: dict) -> None:
+        """ALLOW goes through the same sealed path: an internal seal binds the measured effect (no approvers)."""
+        seal.create(self.state, decision_id=d.id, agent=p.agent, action=p.action, args=p.args,
+                    effect_hash=meta['effect_hash'], label_path_hash=meta['label_path_hash'],
+                    label_catalog_ver=meta['label_catalog_ver'], policy_ver=self.policy.rules_hash,
+                    state_ver=meta['state_ver'], requester=human, tier=d.tier, approvers=[], ttl=60)
+        out = self.execute(d.id)
+        d.status, d.drift, d.verdict, d.reason, d.rule = out.status, out.drift, out.verdict, out.reason, out.rule

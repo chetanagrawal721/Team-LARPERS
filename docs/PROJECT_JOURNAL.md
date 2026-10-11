@@ -216,9 +216,9 @@ Additions to the suite after pre-registration must be logged in §11 with the re
 - [ ] **Phase 3 checkpoint**
 
 ### Phase 4 — Seal & execution (hour-6 gate)
-- [ ] 4.1 Approvals and separation of duties — aryanketkar-15
-- [ ] 4.2 Effect seal with typed drift — aryanketkar-15
-- [ ] 4.3 One-transaction execution and outbox — aryanketkar-15
+- [x] 4.1 Approvals and separation of duties — aryanketkar-15
+- [x] 4.2 Effect seal with typed drift — aryanketkar-15
+- [x] 4.3 One-transaction execution and outbox — aryanketkar-15
 - [ ] **Phase 4 checkpoint**
 
 ### Phase 5 — AI layer
@@ -298,6 +298,9 @@ One line per milestone push, decision, or notable event. Newest at the bottom.
 | 2026-10-11 14:03 | chetanagrawal721 | Milestone | M3.1 — the expected-effect envelope and its deterministic check have been implemented. | |
 | 2026-10-11 14:03 | chetanagrawal721 | Milestone | M3.2 — the deterministic rules, tiers, decide() and baseline verdict have been implemented. | |
 | 2026-10-11 14:03 | chetanagrawal721 | Milestone | M3.3 — resource-keyed cumulative budgets have been implemented. | |
+| 2026-10-11 14:10 | aryanketkar-15 | Milestone | M4.1 — approvals with separation of duties and tiered approvers have been implemented. | |
+| 2026-10-11 14:10 | aryanketkar-15 | Milestone | M4.2 — the effect-bound seal with typed drift detection has been implemented. | |
+| 2026-10-11 14:10 | aryanketkar-15 | Milestone | M4.3 — one-transaction sealed execution and the transactional outbox have been implemented. | |
 
 **Entry types:** Decision · Design · Review · Milestone · Fix · Change · Test · Result · Docs
 
